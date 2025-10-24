@@ -76,7 +76,7 @@ class VideoWidget(QtWidgets.QLabel):
             return
         # Determine size and fps
         fps = (self._fps_ema or 0) or (self._cap.get(cv2.CAP_PROP_FPS) or 0)
-        if fps <= 1:
+        if fps <= 10:
             fps = 30
         w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -122,7 +122,15 @@ class VideoWidget(QtWidgets.QLabel):
             self._writer.write(frame)
         if self._paused:
             return
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Some devices deliver YUY2 or other YUV formats when MJPG not honored
+        try:
+            if len(frame.shape) == 3 and frame.shape[2] == 2:
+                # Heuristic for packed YUV; attempt YUY2 conversion
+                rgb = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_YUY2)
+            else:
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        except Exception:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb.shape
         bytes_per_line = ch * w
         qimg = QtGui.QImage(rgb.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
