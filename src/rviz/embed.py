@@ -123,15 +123,24 @@ class RvizPane(QtWidgets.QWidget):
             # Attempt embedding even under XWayland; if not found, remain external
             pass
 
-        win_id = self._find_rviz_window_id(self._rviz_proc.pid)
-        if win_id is None:
-            self.status_label.setText("running (external)")
-            return
-        qwin = QtGui.QWindow.fromWinId(win_id)
-        self._container = QtWidgets.QWidget.createWindowContainer(qwin)
-        self._stack.addWidget(self._container)
-        self._stack.setCurrentWidget(self._container)
-        self.status_label.setText("embedded")
+        # Try immediate attach; if not found, schedule retries
+        def try_attach():
+            if not self._rviz_proc or self._rviz_proc.poll() is not None:
+                return False
+            win = self._find_rviz_window_id(self._rviz_proc.pid, timeout_sec=0.5)
+            if win is None:
+                return True  # keep retrying
+            qwin = QtGui.QWindow.fromWinId(win)
+            self._container = QtWidgets.QWidget.createWindowContainer(qwin)
+            self._stack.addWidget(self._container)
+            self._stack.setCurrentWidget(self._container)
+            self.status_label.setText("embedded")
+            return False
+
+        self.status_label.setText("running (searching)")
+        self._attach_timer = QtCore.QTimer(self)
+        self._attach_timer.timeout.connect(lambda: (not try_attach()) and self._attach_timer.stop())
+        self._attach_timer.start(300)
 
     def attach_if_possible(self):
         if not self._rviz_proc or self._rviz_proc.poll() is not None:

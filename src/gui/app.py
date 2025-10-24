@@ -75,12 +75,11 @@ class VideoWidget(QtWidgets.QLabel):
             fps = 30
         w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        # Prefer last captured frame to avoid racing with grabber
+        if self._last_frame is not None:
+            h, w = self._last_frame.shape[:2]
         if w <= 0 or h <= 0:
-            ok, probe = self._cap.read()
-            if not ok:
-                raise RuntimeError("Failed to read frame for recording setup")
-            h, w = probe.shape[:2]
-            # We won't drop the first frame; it will be written on next tick
+            raise RuntimeError("Invalid frame size for recording")
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         self._writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
         if not self._writer.isOpened():
@@ -88,6 +87,7 @@ class VideoWidget(QtWidgets.QLabel):
             raise RuntimeError("Failed to open VideoWriter")
         self._record_path = path
         self._record_fps = int(fps)
+        self._writer_size = (w, h)
 
     def stop_recording(self):
         if self._writer is not None:
@@ -98,6 +98,12 @@ class VideoWidget(QtWidgets.QLabel):
     def _on_frame(self, frame):
         self._last_frame = frame
         if self._writer is not None:
+            # Ensure frame size matches writer
+            try:
+                if (frame.shape[1], frame.shape[0]) != getattr(self, "_writer_size", (frame.shape[1], frame.shape[0])):
+                    frame = cv2.resize(frame, self._writer_size, interpolation=cv2.INTER_AREA)
+            except Exception:
+                pass
             self._writer.write(frame)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb.shape
