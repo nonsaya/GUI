@@ -111,8 +111,18 @@ class MainWindow(QtWidgets.QWidget):
 
     def _on_refresh(self):
         self.combo.clear()
-        for dev in list_devices():
+        devices = list_devices()
+        default_index = -1
+        for i, dev in enumerate(devices):
             self.combo.addItem(dev.display_name, dev)
+            # Prefer /dev/video2 on Linux
+            try:
+                if isinstance(dev.open_arg, str) and dev.open_arg == "/dev/video2":
+                    default_index = i
+            except Exception:
+                pass
+        if default_index >= 0:
+            self.combo.setCurrentIndex(default_index)
 
     def _on_start(self):
         if self.combo.count() == 0:
@@ -125,7 +135,8 @@ class MainWindow(QtWidgets.QWidget):
             QtWidgets.QMessageBox.critical(self, "Start failed", str(e))
 
     def _on_open_file(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Video", "", "Video Files (*.mp4 *.avi *.mkv);;All Files (*)")
+        options = QtWidgets.QFileDialog.Option.DontUseNativeDialog
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Video", "", "Video Files (*.mp4 *.avi *.mkv);;All Files (*)", options=options)
         if not path:
             return
         try:
@@ -141,7 +152,17 @@ class MainWindow(QtWidgets.QWidget):
         if self.video._cap is None:
             QtWidgets.QMessageBox.warning(self, "Not started", "まずカメラまたはファイルを開始してください")
             return
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Recording", "output.mp4", "MP4 Video (*.mp4)")
+        options = QtWidgets.QFileDialog.Option.DontUseNativeDialog
+        # Temporarily pause preview to avoid dialog freeze on some environments
+        was_active = self.video._timer.isActive()
+        if was_active:
+            self.video._timer.stop()
+        try:
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Recording", "output.mp4", "MP4 Video (*.mp4)", options=options)
+        finally:
+            # Resume preview if still not recording
+            if was_active and (not self.video.is_recording()) and self.video._cap is not None:
+                self.video._timer.start(30)
         if not path:
             return
         try:
