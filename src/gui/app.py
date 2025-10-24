@@ -122,18 +122,10 @@ class VideoWidget(QtWidgets.QLabel):
             self._writer.write(frame)
         if self._paused:
             return
-        # Some devices deliver YUY2 or other YUV formats when MJPG not honored
-        try:
-            if len(frame.shape) == 3 and frame.shape[2] == 2:
-                # Heuristic for packed YUV; attempt YUY2 conversion
-                rgb = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_YUY2)
-            else:
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        except Exception:
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        h, w, ch = rgb.shape
+        bgr = np.ascontiguousarray(frame)
+        h, w, ch = bgr.shape
         bytes_per_line = ch * w
-        qimg = QtGui.QImage(rgb.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
+        qimg = QtGui.QImage(bgr.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_BGR888)
         pix = QtGui.QPixmap.fromImage(qimg).scaled(self.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation)
         self.setPixmap(pix)
 
