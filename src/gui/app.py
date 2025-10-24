@@ -15,6 +15,7 @@ class FrameGrabber(QThread):
         super().__init__(parent)
         self._cap = cap
         self._running = True
+        self._interval_ms = 0  # pacing interval for file playback
 
     def run(self):
         while self._running:
@@ -25,6 +26,8 @@ class FrameGrabber(QThread):
                     self.msleep(10)
                     continue
                 self.frame.emit(frame)
+                if self._interval_ms > 0:
+                    self.msleep(int(self._interval_ms))
             except Exception as e:
                 self.error.emit(str(e))
                 self.msleep(10)
@@ -80,6 +83,8 @@ class VideoWidget(QtWidgets.QLabel):
             self._display_interval_ms = 0.0
         self._last_display_ts_ms = 0.0
         self._grabber = FrameGrabber(self._cap, self)
+        if self._is_file and self._display_interval_ms > 0.0:
+            self._grabber._interval_ms = int(self._display_interval_ms)
         self._grabber.frame.connect(self._on_frame)
         self._grabber.error.connect(self._on_error)
         self._grabber.start()
