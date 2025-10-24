@@ -68,6 +68,9 @@ class VideoWidget(QtWidgets.QLabel):
         if self._cap is not None:
             self.stop()
         self._cap = open_capture(device)
+        # store expected dimensions from device
+        self._expected_w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or None
+        self._expected_h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or None
         self._grabber = FrameGrabber(self._cap, self)
         self._grabber.frame.connect(self._on_frame)
         self._grabber.error.connect(self._on_error)
@@ -176,20 +179,15 @@ class VideoWidget(QtWidgets.QLabel):
         # Convert NV12/YUY2 to BGR for writing/preview
         bgr = self._to_bgr(frame)
         # Write BGR frame to writer/ffmpeg
+        target_size = getattr(self, "_writer_size", (bgr.shape[1], bgr.shape[0]))
+        wbgr = bgr if (bgr.shape[1], bgr.shape[0]) == target_size else cv2.resize(bgr, target_size, interpolation=cv2.INTER_AREA)
         if self._writer is not None:
             try:
-                if (bgr.shape[1], bgr.shape[0]) != getattr(self, "_writer_size", (bgr.shape[1], bgr.shape[0])):
-                    wbgr = cv2.resize(bgr, self._writer_size, interpolation=cv2.INTER_AREA)
-                else:
-                    wbgr = bgr
                 self._writer.write(wbgr)
             except Exception:
                 pass
         elif self._ff is not None:
             try:
-                wbgr = bgr
-                if (bgr.shape[1], bgr.shape[0]) != getattr(self, "_writer_size", (bgr.shape[1], bgr.shape[0])):
-                    wbgr = cv2.resize(bgr, self._writer_size, interpolation=cv2.INTER_AREA)
                 self._ff.write(wbgr)
             except Exception:
                 pass
