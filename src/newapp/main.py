@@ -123,14 +123,12 @@ class NewMainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Not started", "まずカメラまたはファイルを開始してください")
             return
         options = QtWidgets.QFileDialog.Option.DontUseNativeDialog
-        was_active = self.video._timer.isActive()
-        if was_active:
-            self.video._timer.stop()
+        self.video.pause_preview()
         try:
             path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Recording", "output.mp4", "MP4 Video (*.mp4)", options=options)
         finally:
-            if was_active and (not self.video.is_recording()) and self.video._cap is not None:
-                self.video._timer.start(30)
+            if (not self.video.is_recording()) and self.video._cap is not None:
+                self.video.resume_preview()
         if not path:
             return
         try:

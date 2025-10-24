@@ -41,6 +41,7 @@ class VideoWidget(QtWidgets.QLabel):
         self._record_path = None
         self._record_fps = 30
         self._last_frame = None
+        self._paused = False
 
     def start(self, device):
         if self._cap is not None:
@@ -60,6 +61,7 @@ class VideoWidget(QtWidgets.QLabel):
             self._cap.release()
             self._cap = None
         self.clear()
+        self._paused = False
 
     def is_recording(self) -> bool:
         return self._writer is not None
@@ -105,6 +107,8 @@ class VideoWidget(QtWidgets.QLabel):
             except Exception:
                 pass
             self._writer.write(frame)
+        if self._paused:
+            return
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb.shape
         bytes_per_line = ch * w
@@ -115,6 +119,12 @@ class VideoWidget(QtWidgets.QLabel):
     def _on_error(self, msg: str):
         # keep silent to avoid spamming; could surface once
         pass
+
+    def pause_preview(self):
+        self._paused = True
+
+    def resume_preview(self):
+        self._paused = False
 
 class MainWindow(QtWidgets.QWidget):
     def __init__(self):
@@ -207,15 +217,13 @@ class MainWindow(QtWidgets.QWidget):
             return
         options = QtWidgets.QFileDialog.Option.DontUseNativeDialog
         # Temporarily pause preview to avoid dialog freeze on some environments
-        was_active = self.video._timer.isActive()
-        if was_active:
-            self.video._timer.stop()
+        self.video.pause_preview()
         try:
             path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Recording", "output.mp4", "MP4 Video (*.mp4)", options=options)
         finally:
             # Resume preview if still not recording
-            if was_active and (not self.video.is_recording()) and self.video._cap is not None:
-                self.video._timer.start(30)
+            if (not self.video.is_recording()) and self.video._cap is not None:
+                self.video.resume_preview()
         if not path:
             return
         try:
