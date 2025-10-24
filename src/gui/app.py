@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from src.core.video_capture import list_devices, DeviceDescriptor, open_capture
 import time
+import os
 from src.core.ffmpeg_writer import FFMpegWriter
 
 class FrameGrabber(QThread):
@@ -48,6 +49,9 @@ class VideoWidget(QtWidgets.QLabel):
         self._fps_ema = None
         self._swap_rb = False
         self._ff = None
+        self._is_file = False
+        self._display_interval_ms = 0.0
+        self._last_display_ts_ms = 0.0
     def _to_bgr(self, frame):
         bgr = None
         if frame.ndim == 2:
@@ -67,7 +71,14 @@ class VideoWidget(QtWidgets.QLabel):
     def start(self, device):
         if self._cap is not None:
             self.stop()
+        self._is_file = isinstance(device, str) and os.path.exists(str(device))
         self._cap = open_capture(device)
+        fps_val = self._cap.get(cv2.CAP_PROP_FPS) or 0.0
+        if self._is_file and fps_val and fps_val > 1.0:
+            self._display_interval_ms = 1000.0 / float(fps_val)
+        else:
+            self._display_interval_ms = 0.0
+        self._last_display_ts_ms = 0.0
         self._grabber = FrameGrabber(self._cap, self)
         self._grabber.frame.connect(self._on_frame)
         self._grabber.error.connect(self._on_error)
@@ -186,6 +197,12 @@ class VideoWidget(QtWidgets.QLabel):
                 pass
         if self._paused:
             return
+        # Throttle GUI display for file playback to source fps
+        if self._is_file and self._display_interval_ms > 0.0:
+            now_ms = time.monotonic() * 1000.0
+            if self._last_display_ts_ms and (now_ms - self._last_display_ts_ms) < self._display_interval_ms:
+                return
+            self._last_display_ts_ms = now_ms
         h, w = bgr.shape[:2]
         bytes_per_line = 3 * w
         if getattr(self, "_swap_rb", False):
