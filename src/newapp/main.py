@@ -1,6 +1,7 @@
 from PyQt6 import QtWidgets
 from src.gui.app import VideoWidget
 from src.core.video_capture import list_devices, DeviceDescriptor
+from src.rviz.embed import RvizPane
 
 class NewMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -17,7 +18,10 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.open_btn = QtWidgets.QPushButton("Open File")
         self.rec_btn = QtWidgets.QPushButton("Rec")
 
-        layout = QtWidgets.QVBoxLayout(central)
+        # Tabs: Capture / RViz2
+        self.tabs = QtWidgets.QTabWidget()
+        capture_tab = QtWidgets.QWidget()
+        capture_layout = QtWidgets.QVBoxLayout(capture_tab)
         hl = QtWidgets.QHBoxLayout()
         hl.addWidget(self.combo)
         hl.addWidget(self.refresh_btn)
@@ -25,8 +29,14 @@ class NewMainWindow(QtWidgets.QMainWindow):
         hl.addWidget(self.stop_btn)
         hl.addWidget(self.open_btn)
         hl.addWidget(self.rec_btn)
-        layout.addLayout(hl)
-        layout.addWidget(self.video, 1)
+        capture_layout.addLayout(hl)
+        capture_layout.addWidget(self.video, 1)
+        self.rviz_pane = RvizPane()
+        self.tabs.addTab(capture_tab, "Capture")
+        self.tabs.addTab(self.rviz_pane, "RViz2")
+
+        layout = QtWidgets.QVBoxLayout(central)
+        layout.addWidget(self.tabs)
 
         self.refresh_btn.clicked.connect(self._on_refresh)
         self.start_btn.clicked.connect(self._on_start)

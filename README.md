@@ -40,3 +40,11 @@ USB-C 経由のビデオキャプチャをGUIで表示するMVP。
   コンボボックスに検出されたカメラ（DirectShow/MSMF）が表示されます。
   開けない場合は別のエントリを選択してください。
 
+
+## RViz2 埋め込み (Linux/X11)
+
+- 前提: rviz2, wmctrl がインストール済み、Xorg (Wayland不可)
+- 起動: 新GUIの "RViz2" タブで "Start RViz2"
+- 停止: "Stop RViz2"
+- 失敗時: 外部ウィンドウとして起動します（埋め込めない場合）
+
