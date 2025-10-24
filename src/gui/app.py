@@ -68,9 +68,6 @@ class VideoWidget(QtWidgets.QLabel):
         if self._cap is not None:
             self.stop()
         self._cap = open_capture(device)
-        # store expected dimensions from device
-        self._expected_w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or None
-        self._expected_h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or None
         self._grabber = FrameGrabber(self._cap, self)
         self._grabber.frame.connect(self._on_frame)
         self._grabber.error.connect(self._on_error)
@@ -88,7 +85,7 @@ class VideoWidget(QtWidgets.QLabel):
         self._paused = False
 
     def is_recording(self) -> bool:
-        return self._writer is not None
+        return (self._writer is not None) or (self._ff is not None)
 
     def start_recording(self, path: str):
         if self._cap is None:
@@ -104,11 +101,9 @@ class VideoWidget(QtWidgets.QLabel):
         if fps <= 1:
             fps = 30.0
         fps = float(max(5.0, min(60.0, fps)))
-        w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        # Prefer last captured frame to avoid racing with grabber
-        if self._last_frame is not None:
-            h, w = self._last_frame.shape[:2]
+        # Determine output size from the actual BGR frame (after conversion)
+        probe_bgr = self._to_bgr(self._last_frame)
+        h, w = probe_bgr.shape[:2]
         if w <= 0 or h <= 0:
             raise RuntimeError("Invalid frame size for recording")
         # Choose codec/container with fallback candidates
@@ -137,9 +132,7 @@ class VideoWidget(QtWidgets.QLabel):
             if not writer.isOpened():
                 continue
             # write a test frame to validate
-            test_bgr = self._to_bgr(self._last_frame)
-            if (test_bgr.shape[1], test_bgr.shape[0]) != (w, h):
-                test_bgr = cv2.resize(test_bgr, (w, h), interpolation=cv2.INTER_AREA)
+            test_bgr = probe_bgr if (probe_bgr.shape[1], probe_bgr.shape[0]) == (w, h) else cv2.resize(probe_bgr, (w, h), interpolation=cv2.INTER_AREA)
             try:
                 writer.write(test_bgr)
                 opened = True
