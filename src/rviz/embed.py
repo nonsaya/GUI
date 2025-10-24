@@ -64,8 +64,17 @@ class RvizPane(QtWidgets.QWidget):
         if self._rviz_proc and self._rviz_proc.poll() is None:
             return
         env = os.environ.copy()
-        # Force X11 to improve embeddability on Linux
-        env.setdefault("QT_QPA_PLATFORM", "xcb")
+        # Sanitize Qt plugin paths leaked from OpenCV/PyQt to avoid xcb plugin mismatch
+        env.pop("QT_PLUGIN_PATH", None)
+        env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
+        # Choose platform according to session type
+        session_type = env.get("XDG_SESSION_TYPE", "").lower()
+        if session_type == "wayland":
+            # Wayland: run rviz2 externally (embedding unsupported), ensure wayland platform
+            env["QT_QPA_PLATFORM"] = "wayland"
+        else:
+            # X11: prefer xcb for embeddability
+            env["QT_QPA_PLATFORM"] = env.get("QT_QPA_PLATFORM", "xcb")
         args = ["rviz2"]
         if self._display_config:
             args += ["-d", self._display_config]
@@ -76,6 +85,11 @@ class RvizPane(QtWidgets.QWidget):
             return
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Failed to start rviz2", str(e))
+            return
+
+        # Skip embedding on Wayland; show as external window
+        if env.get("QT_QPA_PLATFORM") == "wayland":
+            self.status_label.setText("running (external/wayland)")
             return
 
         win_id = self._find_rviz_window_id(self._rviz_proc.pid)
