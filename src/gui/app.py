@@ -10,6 +10,9 @@ class VideoWidget(QtWidgets.QLabel):
         self._timer = QtCore.QTimer(self)
         self._timer.timeout.connect(self._on_tick)
         self._cap = None
+        self._writer = None
+        self._record_path = None
+        self._record_fps = 30
 
     def start(self, device):
         if self._cap is not None:
@@ -19,10 +22,45 @@ class VideoWidget(QtWidgets.QLabel):
 
     def stop(self):
         self._timer.stop()
+        self.stop_recording()
         if self._cap is not None:
             self._cap.release()
             self._cap = None
         self.clear()
+
+    def is_recording(self) -> bool:
+        return self._writer is not None
+
+    def start_recording(self, path: str):
+        if self._cap is None:
+            raise RuntimeError("Camera is not started")
+        if self._writer is not None:
+            return
+        # Determine size and fps
+        fps = self._cap.get(cv2.CAP_PROP_FPS) or 0
+        if fps <= 1:
+            fps = 30
+        w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if w <= 0 or h <= 0:
+            ok, probe = self._cap.read()
+            if not ok:
+                raise RuntimeError("Failed to read frame for recording setup")
+            h, w = probe.shape[:2]
+            # We won't drop the first frame; it will be written on next tick
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        self._writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
+        if not self._writer.isOpened():
+            self._writer = None
+            raise RuntimeError("Failed to open VideoWriter")
+        self._record_path = path
+        self._record_fps = int(fps)
+
+    def stop_recording(self):
+        if self._writer is not None:
+            self._writer.release()
+            self._writer = None
+            self._record_path = None
 
     def _on_tick(self):
         if self._cap is None:
@@ -30,6 +68,9 @@ class VideoWidget(QtWidgets.QLabel):
         ok, frame = self._cap.read()
         if not ok:
             return
+        if self._writer is not None:
+            # Ensure color space is BGR for writer
+            self._writer.write(frame)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb.shape
         bytes_per_line = ch * w
@@ -46,6 +87,8 @@ class MainWindow(QtWidgets.QWidget):
         self.refresh_btn = QtWidgets.QPushButton("Refresh")
         self.start_btn = QtWidgets.QPushButton("Start")
         self.stop_btn = QtWidgets.QPushButton("Stop")
+        self.open_btn = QtWidgets.QPushButton("Open File")
+        self.rec_btn = QtWidgets.QPushButton("Rec")
 
         layout = QtWidgets.QVBoxLayout(self)
         hl = QtWidgets.QHBoxLayout()
@@ -53,12 +96,16 @@ class MainWindow(QtWidgets.QWidget):
         hl.addWidget(self.refresh_btn)
         hl.addWidget(self.start_btn)
         hl.addWidget(self.stop_btn)
+        hl.addWidget(self.open_btn)
+        hl.addWidget(self.rec_btn)
         layout.addLayout(hl)
         layout.addWidget(self.video, 1)
 
         self.refresh_btn.clicked.connect(self._on_refresh)
         self.start_btn.clicked.connect(self._on_start)
         self.stop_btn.clicked.connect(self.video.stop)
+        self.open_btn.clicked.connect(self._on_open_file)
+        self.rec_btn.clicked.connect(self._on_toggle_rec)
 
         self._on_refresh()
 
@@ -73,6 +120,32 @@ class MainWindow(QtWidgets.QWidget):
             return
         dev = self.combo.currentData()
         self.video.start(dev)
+
+    def _on_open_file(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Video", "", "Video Files (*.mp4 *.avi *.mkv);;All Files (*)")
+        if not path:
+            return
+        try:
+            self.video.start(path)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Open failed", str(e))
+
+    def _on_toggle_rec(self):
+        if self.video.is_recording():
+            self.video.stop_recording()
+            self.rec_btn.setText("Rec")
+            return
+        if self.video._cap is None:
+            QtWidgets.QMessageBox.warning(self, "Not started", "まずカメラまたはファイルを開始してください")
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Recording", "output.mp4", "MP4 Video (*.mp4)")
+        if not path:
+            return
+        try:
+            self.video.start_recording(path)
+            self.rec_btn.setText("Stop Rec")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Record failed", str(e))
 
 def main():
     import sys

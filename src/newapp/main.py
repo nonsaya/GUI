@@ -14,6 +14,8 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.refresh_btn = QtWidgets.QPushButton("Refresh")
         self.start_btn = QtWidgets.QPushButton("Start")
         self.stop_btn = QtWidgets.QPushButton("Stop")
+        self.open_btn = QtWidgets.QPushButton("Open File")
+        self.rec_btn = QtWidgets.QPushButton("Rec")
 
         layout = QtWidgets.QVBoxLayout(central)
         hl = QtWidgets.QHBoxLayout()
@@ -21,12 +23,16 @@ class NewMainWindow(QtWidgets.QMainWindow):
         hl.addWidget(self.refresh_btn)
         hl.addWidget(self.start_btn)
         hl.addWidget(self.stop_btn)
+        hl.addWidget(self.open_btn)
+        hl.addWidget(self.rec_btn)
         layout.addLayout(hl)
         layout.addWidget(self.video, 1)
 
         self.refresh_btn.clicked.connect(self._on_refresh)
         self.start_btn.clicked.connect(self._on_start)
         self.stop_btn.clicked.connect(self.video.stop)
+        self.open_btn.clicked.connect(self._on_open_file)
+        self.rec_btn.clicked.connect(self._on_toggle_rec)
         self._on_refresh()
 
     def _on_refresh(self):
@@ -40,6 +46,32 @@ class NewMainWindow(QtWidgets.QMainWindow):
             return
         dev = self.combo.currentData()
         self.video.start(dev)
+
+    def _on_open_file(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Video", "", "Video Files (*.mp4 *.avi *.mkv);;All Files (*)")
+        if not path:
+            return
+        try:
+            self.video.start(path)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Open failed", str(e))
+
+    def _on_toggle_rec(self):
+        if self.video.is_recording():
+            self.video.stop_recording()
+            self.rec_btn.setText("Rec")
+            return
+        if self.video._cap is None:
+            QtWidgets.QMessageBox.warning(self, "Not started", "まずカメラまたはファイルを開始してください")
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Recording", "output.mp4", "MP4 Video (*.mp4)")
+        if not path:
+            return
+        try:
+            self.video.start_recording(path)
+            self.rec_btn.setText("Stop Rec")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Record failed", str(e))
 
 
 def main():
