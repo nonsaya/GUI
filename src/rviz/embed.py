@@ -16,11 +16,13 @@ class RvizPane(QtWidgets.QWidget):
 
         self.start_btn = QtWidgets.QPushButton("Start RViz2")
         self.stop_btn = QtWidgets.QPushButton("Stop RViz2")
+        self.attach_btn = QtWidgets.QPushButton("Attach")
         self.status_label = QtWidgets.QLabel("stopped")
 
         hl = QtWidgets.QHBoxLayout()
         hl.addWidget(self.start_btn)
         hl.addWidget(self.stop_btn)
+        hl.addWidget(self.attach_btn)
         hl.addStretch(1)
         hl.addWidget(self.status_label)
 
@@ -35,6 +37,33 @@ class RvizPane(QtWidgets.QWidget):
 
         self.start_btn.clicked.connect(self.start_rviz)
         self.stop_btn.clicked.connect(self.stop_rviz)
+        self.attach_btn.clicked.connect(self.attach_if_possible)
+
+    def _collect_descendant_pids(self, root_pid: int) -> set[int]:
+        pids = {root_pid}
+        try:
+            # breadth-first over children using ps; avoids external modules
+            queue = [root_pid]
+            while queue:
+                current = queue.pop(0)
+                try:
+                    out = subprocess.check_output(["ps", "-o", "pid=", "--ppid", str(current)], text=True)
+                except Exception:
+                    continue
+                for line in out.splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        child = int(line)
+                    except ValueError:
+                        continue
+                    if child not in pids:
+                        pids.add(child)
+                        queue.append(child)
+        except Exception:
+            pass
+        return pids
 
     def _find_rviz_window_id(self, pid: int, timeout_sec: float = 10.0) -> Optional[int]:
         end = time.time() + timeout_sec
@@ -43,6 +72,7 @@ class RvizPane(QtWidgets.QWidget):
                 out = subprocess.check_output(["wmctrl", "-lp"], text=True)
             except Exception:
                 return None
+            pid_set = self._collect_descendant_pids(pid)
             for line in out.splitlines():
                 parts = line.split()
                 if len(parts) < 5:
@@ -52,7 +82,7 @@ class RvizPane(QtWidgets.QWidget):
                     win_pid = int(parts[2])
                 except ValueError:
                     continue
-                if win_pid == pid:
+                if win_pid in pid_set:
                     try:
                         return int(win_id_hex, 16)
                     except ValueError:
@@ -102,6 +132,32 @@ class RvizPane(QtWidgets.QWidget):
         self._stack.addWidget(self._container)
         self._stack.setCurrentWidget(self._container)
         self.status_label.setText("embedded")
+
+    def attach_if_possible(self):
+        if not self._rviz_proc or self._rviz_proc.poll() is not None:
+            # Try to find any rviz2 window system-wide (best-effort)
+            try:
+                out = subprocess.check_output(["wmctrl", "-lp"], text=True)
+            except Exception:
+                QtWidgets.QMessageBox.warning(self, "wmctrl not available", "wmctrl が必要です")
+                return
+            for line in out.splitlines():
+                if "rviz" not in line.lower():
+                    continue
+                parts = line.split()
+                if not parts:
+                    continue
+                try:
+                    win_id = int(parts[0], 16)
+                except Exception:
+                    continue
+                qwin = QtGui.QWindow.fromWinId(win_id)
+                self._container = QtWidgets.QWidget.createWindowContainer(qwin)
+                self._stack.addWidget(self._container)
+                self._stack.setCurrentWidget(self._container)
+                self.status_label.setText("embedded")
+                return
+            QtWidgets.QMessageBox.information(self, "No window", "RViz2 ウィンドウが見つかりません")
 
     def stop_rviz(self):
         if self._container is not None:
