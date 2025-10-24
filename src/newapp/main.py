@@ -1,6 +1,6 @@
 from PyQt6 import QtWidgets
 from src.gui.app import VideoWidget
-from src.core import list_v4l2_devices
+from src.core.video_capture import list_devices, DeviceDescriptor
 
 class NewMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -31,15 +31,15 @@ class NewMainWindow(QtWidgets.QMainWindow):
 
     def _on_refresh(self):
         self.combo.clear()
-        for dev in list_v4l2_devices():
-            self.combo.addItem(dev)
+        for dev in list_devices():
+            self.combo.addItem(dev.display_name, dev)
 
     def _on_start(self):
         if self.combo.count() == 0:
             QtWidgets.QMessageBox.warning(self, "No device", "V4L2 デバイスが見つかりません")
             return
-        device = self.combo.currentText()
-        self.video.start(device)
+        dev = self.combo.currentData()
+        self.video.start(dev)
 
 
 def main():
