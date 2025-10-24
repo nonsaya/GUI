@@ -1,28 +1,61 @@
 from PyQt6 import QtWidgets, QtGui, QtCore
+from PyQt6.QtCore import pyqtSignal, QThread
 import cv2
 import numpy as np
 from src.core.video_capture import list_devices, DeviceDescriptor, open_capture
+
+class FrameGrabber(QThread):
+    frame = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, cap: cv2.VideoCapture, parent=None):
+        super().__init__(parent)
+        self._cap = cap
+        self._running = True
+
+    def run(self):
+        while self._running:
+            try:
+                ok, frame = self._cap.read()
+                if not ok:
+                    self.error.emit("Failed to read frame")
+                    self.msleep(10)
+                    continue
+                self.frame.emit(frame)
+            except Exception as e:
+                self.error.emit(str(e))
+                self.msleep(10)
+
+    def stop(self):
+        self._running = False
+        self.wait(500)
+
 
 class VideoWidget(QtWidgets.QLabel):
     def __init__(self):
         super().__init__()
         self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self._timer = QtCore.QTimer(self)
-        self._timer.timeout.connect(self._on_tick)
         self._cap = None
+        self._grabber: FrameGrabber | None = None
         self._writer = None
         self._record_path = None
         self._record_fps = 30
+        self._last_frame = None
 
     def start(self, device):
         if self._cap is not None:
             self.stop()
         self._cap = open_capture(device)
-        self._timer.start(30)
+        self._grabber = FrameGrabber(self._cap, self)
+        self._grabber.frame.connect(self._on_frame)
+        self._grabber.error.connect(self._on_error)
+        self._grabber.start()
 
     def stop(self):
-        self._timer.stop()
         self.stop_recording()
+        if self._grabber is not None:
+            self._grabber.stop()
+            self._grabber = None
         if self._cap is not None:
             self._cap.release()
             self._cap = None
@@ -62,14 +95,9 @@ class VideoWidget(QtWidgets.QLabel):
             self._writer = None
             self._record_path = None
 
-    def _on_tick(self):
-        if self._cap is None:
-            return
-        ok, frame = self._cap.read()
-        if not ok:
-            return
+    def _on_frame(self, frame):
+        self._last_frame = frame
         if self._writer is not None:
-            # Ensure color space is BGR for writer
             self._writer.write(frame)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb.shape
@@ -77,6 +105,10 @@ class VideoWidget(QtWidgets.QLabel):
         qimg = QtGui.QImage(rgb.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
         pix = QtGui.QPixmap.fromImage(qimg).scaled(self.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation)
         self.setPixmap(pix)
+
+    def _on_error(self, msg: str):
+        # keep silent to avoid spamming; could surface once
+        pass
 
 class MainWindow(QtWidgets.QWidget):
     def __init__(self):
