@@ -3,6 +3,7 @@ from PyQt6.QtCore import pyqtSignal, QThread
 import cv2
 import numpy as np
 from src.core.video_capture import list_devices, DeviceDescriptor, open_capture
+import time
 
 class FrameGrabber(QThread):
     frame = pyqtSignal(object)
@@ -42,6 +43,8 @@ class VideoWidget(QtWidgets.QLabel):
         self._record_fps = 30
         self._last_frame = None
         self._paused = False
+        self._last_ts = None
+        self._fps_ema = None
 
     def start(self, device):
         if self._cap is not None:
@@ -72,7 +75,7 @@ class VideoWidget(QtWidgets.QLabel):
         if self._writer is not None:
             return
         # Determine size and fps
-        fps = self._cap.get(cv2.CAP_PROP_FPS) or 0
+        fps = (self._fps_ema or 0) or (self._cap.get(cv2.CAP_PROP_FPS) or 0)
         if fps <= 1:
             fps = 30
         w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -99,6 +102,16 @@ class VideoWidget(QtWidgets.QLabel):
 
     def _on_frame(self, frame):
         self._last_frame = frame
+        # Update FPS estimate using exponential moving average
+        now = time.monotonic()
+        if self._last_ts is not None:
+            dt = max(1e-6, now - self._last_ts)
+            inst_fps = 1.0 / dt
+            if self._fps_ema is None:
+                self._fps_ema = inst_fps
+            else:
+                self._fps_ema = 0.9 * self._fps_ema + 0.1 * inst_fps
+        self._last_ts = now
         if self._writer is not None:
             # Ensure frame size matches writer
             try:
