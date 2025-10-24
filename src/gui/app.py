@@ -112,17 +112,32 @@ class MainWindow(QtWidgets.QWidget):
     def _on_refresh(self):
         self.combo.clear()
         devices = list_devices()
-        default_index = -1
-        for i, dev in enumerate(devices):
+        for dev in devices:
             self.combo.addItem(dev.display_name, dev)
-            # Prefer /dev/video2 on Linux
-            try:
-                if isinstance(dev.open_arg, str) and dev.open_arg == "/dev/video2":
-                    default_index = i
-            except Exception:
-                pass
-        if default_index >= 0:
-            self.combo.setCurrentIndex(default_index)
+        # Prefer /dev/video2 if openable; otherwise first openable device
+        preferred = -1
+        for i in range(self.combo.count()):
+            dev = self.combo.itemData(i)
+            if isinstance(dev.open_arg, str) and dev.open_arg == "/dev/video2":
+                try:
+                    cap = open_capture(dev)
+                    cap.release()
+                    preferred = i
+                    break
+                except Exception:
+                    pass
+        if preferred < 0:
+            for i in range(self.combo.count()):
+                dev = self.combo.itemData(i)
+                try:
+                    cap = open_capture(dev)
+                    cap.release()
+                    preferred = i
+                    break
+                except Exception:
+                    continue
+        if preferred >= 0:
+            self.combo.setCurrentIndex(preferred)
 
     def _on_start(self):
         if self.combo.count() == 0:
