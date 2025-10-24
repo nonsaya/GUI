@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from src.core.video_capture import list_devices, DeviceDescriptor, open_capture
 import time
+from src.core.ffmpeg_writer import FFMpegWriter
 
 class FrameGrabber(QThread):
     frame = pyqtSignal(object)
@@ -46,6 +47,7 @@ class VideoWidget(QtWidgets.QLabel):
         self._last_ts = None
         self._fps_ema = None
         self._swap_rb = False
+        self._ff = None
     def _to_bgr(self, frame):
         bgr = None
         if frame.ndim == 2:
@@ -110,13 +112,19 @@ class VideoWidget(QtWidgets.QLabel):
         req = path
         candidates = []
         lower = req.lower()
+        if lower.endswith('.mp4'):
+            ff = FFMpegWriter()
+            if ff.is_available():
+                ff.open(req, w, h, fps)
+                self._ff = ff
+                self._record_path = req
+                self._record_fps = int(fps)
+                self._writer_size = (w, h)
+                return
         if lower.endswith('.avi'):
-            candidates = [(req, 'MJPG'), (req, 'XVID')]
-        elif lower.endswith('.mp4'):
-            # prefer robust AVI first even if .mp4 requested
-            candidates = [(req[:-4] + '.avi', 'MJPG'), (req[:-4] + '.avi', 'XVID'), (req, 'mp4v')]
+            candidates = [(req, 'XVID'), (req, 'MJPG')]
         else:
-            candidates = [(req + '.avi', 'MJPG'), (req + '.avi', 'XVID'), (req + '.mp4', 'mp4v')]
+            candidates = [(req + '.avi', 'XVID'), (req + '.avi', 'MJPG')]
 
         opened = False
         out_path = None
@@ -149,6 +157,9 @@ class VideoWidget(QtWidgets.QLabel):
             self._writer.release()
             self._writer = None
             self._record_path = None
+        if self._ff is not None:
+            self._ff.close()
+            self._ff = None
 
     def _on_frame(self, frame):
         self._last_frame = frame
@@ -163,10 +174,27 @@ class VideoWidget(QtWidgets.QLabel):
                 self._fps_ema = 0.9 * self._fps_ema + 0.1 * inst_fps
         self._last_ts = now
         # Convert NV12/YUY2 to BGR for writing/preview
+        bgr = self._to_bgr(frame)
+        # Write BGR frame to writer/ffmpeg
+        if self._writer is not None:
+            try:
+                if (bgr.shape[1], bgr.shape[0]) != getattr(self, "_writer_size", (bgr.shape[1], bgr.shape[0])):
+                    wbgr = cv2.resize(bgr, self._writer_size, interpolation=cv2.INTER_AREA)
+                else:
+                    wbgr = bgr
+                self._writer.write(wbgr)
+            except Exception:
+                pass
+        elif self._ff is not None:
+            try:
+                wbgr = bgr
+                if (bgr.shape[1], bgr.shape[0]) != getattr(self, "_writer_size", (bgr.shape[1], bgr.shape[0])):
+                    wbgr = cv2.resize(bgr, self._writer_size, interpolation=cv2.INTER_AREA)
+                self._ff.write(wbgr)
+            except Exception:
+                pass
         if self._paused:
             return
-        # Convert NV12/YUY2 to BGR for writing/preview
-        bgr = self._to_bgr(frame)
         h, w = bgr.shape[:2]
         bytes_per_line = 3 * w
         if getattr(self, "_swap_rb", False):
