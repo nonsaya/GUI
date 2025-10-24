@@ -91,14 +91,14 @@ def open_capture(device: Union[str, DeviceDescriptor]) -> cv2.VideoCapture:
         for open_arg, backend in candidates:
             try:
                 cap = cv2.VideoCapture(open_arg, backend) if backend is not None else cv2.VideoCapture(open_arg)
-                # Prefer MJPG for correct colors/performance if supported
+                # Prefer MJPG for performance if supported
                 try:
                     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
                 except Exception:
                     pass
-                # Ensure RGB conversion happens in backend
+                # Reduce internal buffering to minimize stutter/latency
                 try:
-                    cap.set(cv2.CAP_PROP_CONVERT_RGB, 1)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 except Exception:
                     pass
                 if not cap.isOpened():
