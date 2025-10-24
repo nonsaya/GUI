@@ -89,12 +89,21 @@ class VideoWidget(QtWidgets.QLabel):
             h, w = self._last_frame.shape[:2]
         if w <= 0 or h <= 0:
             raise RuntimeError("Invalid frame size for recording")
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        self._writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
+        # Choose codec/container
+        out_path = path
+        lower = out_path.lower()
+        if lower.endswith('.avi'):
+            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        elif lower.endswith('.mp4'):
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        else:
+            out_path = out_path + '.avi'
+            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        self._writer = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
         if not self._writer.isOpened():
             self._writer = None
             raise RuntimeError("Failed to open VideoWriter")
-        self._record_path = path
+        self._record_path = out_path
         self._record_fps = int(fps)
         self._writer_size = (w, h)
 
@@ -116,14 +125,7 @@ class VideoWidget(QtWidgets.QLabel):
             else:
                 self._fps_ema = 0.9 * self._fps_ema + 0.1 * inst_fps
         self._last_ts = now
-        if self._writer is not None:
-            # Ensure frame size matches writer
-            try:
-                if (frame.shape[1], frame.shape[0]) != getattr(self, "_writer_size", (frame.shape[1], frame.shape[0])):
-                    frame = cv2.resize(frame, self._writer_size, interpolation=cv2.INTER_AREA)
-            except Exception:
-                pass
-            self._writer.write(frame)
+        # Convert NV12/YUY2 to BGR for writing/preview
         if self._paused:
             return
         # Convert NV12/YUY2 to BGR if detected; otherwise assume BGR
