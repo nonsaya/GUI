@@ -42,6 +42,7 @@ class FrameGrabber(QThread):
 
 
 class VideoWidget(QtWidgets.QLabel):
+    progress = pyqtSignal(int, int)
     def __init__(self):
         super().__init__()
         self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
@@ -61,6 +62,7 @@ class VideoWidget(QtWidgets.QLabel):
         self._last_display_ts_ms = 0.0
         self._total_frames = 0
         self._cur_frame = 0
+        self._play_speed = 1.0
     def _to_bgr(self, frame):
         bgr = None
         if frame.ndim == 2:
@@ -96,7 +98,7 @@ class VideoWidget(QtWidgets.QLabel):
             self._cur_frame = int(self._cap.get(cv2.CAP_PROP_POS_FRAMES)) or 0
         self._grabber = FrameGrabber(self._cap, self)
         if self._is_file and self._display_interval_ms > 0.0:
-            self._grabber._interval_ms = int(self._display_interval_ms)
+            self._grabber._interval_ms = int(self._display_interval_ms / max(0.1, self._play_speed))
         self._grabber.frame.connect(self._on_frame)
         self._grabber.error.connect(self._on_error)
         self._grabber.start()
@@ -214,12 +216,20 @@ class VideoWidget(QtWidgets.QLabel):
                 pass
         if self._paused:
             return
-        # Throttle GUI display for file playback to source fps
+        # Throttle GUI display for file playback to source fps (respect play speed)
         if self._is_file and self._display_interval_ms > 0.0:
             now_ms = time.monotonic() * 1000.0
-            if self._last_display_ts_ms and (now_ms - self._last_display_ts_ms) < self._display_interval_ms:
+            interval = self._display_interval_ms / max(0.1, self._play_speed)
+            if self._last_display_ts_ms and (now_ms - self._last_display_ts_ms) < interval:
                 return
             self._last_display_ts_ms = now_ms
+        # Emit playback progress for file
+        if self._is_file:
+            try:
+                self._cur_frame = int(self._cap.get(cv2.CAP_PROP_POS_FRAMES)) or (self._cur_frame + 1)
+            except Exception:
+                self._cur_frame += 1
+            self.progress.emit(self._cur_frame, self._total_frames)
         h, w = bgr.shape[:2]
         bytes_per_line = 3 * w
         if getattr(self, "_swap_rb", False):
@@ -235,6 +245,32 @@ class VideoWidget(QtWidgets.QLabel):
         # force repaint with swapped channels
         if self._last_frame is not None:
             self._on_frame(self._last_frame)
+
+    # Playback controls (file playback)
+    def play(self):
+        if self._grabber is not None:
+            self._grabber._paused = False
+
+    def pause(self):
+        if self._grabber is not None:
+            self._grabber._paused = True
+
+    def stop_playback(self):
+        if self._is_file and self._cap is not None:
+            try:
+                self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                self._cur_frame = 0
+            except Exception:
+                pass
+            if self._grabber is not None:
+                self._grabber._paused = True
+            if self._last_frame is not None:
+                self._on_frame(self._last_frame)
+
+    def set_play_speed(self, speed: float):
+        self._play_speed = max(0.1, float(speed))
+        if self._is_file and self._display_interval_ms > 0.0 and self._grabber is not None:
+            self._grabber._interval_ms = int(self._display_interval_ms / self._play_speed)
 
     def _on_error(self, msg: str):
         # keep silent to avoid spamming; could surface once

@@ -22,6 +22,9 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.swap_btn = QtWidgets.QPushButton("Swap R/B")
         self.play_btn = QtWidgets.QPushButton("Play")
         self.pause_btn = QtWidgets.QPushButton("Pause")
+        self.stop_play_btn = QtWidgets.QPushButton("Stop")
+        self.speed_combo = QtWidgets.QComboBox()
+        self.speed_combo.addItems(["0.5x","1x","2x"]) 
         self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider.setRange(0, 0)
 
@@ -36,6 +39,8 @@ class NewMainWindow(QtWidgets.QMainWindow):
         hl.addWidget(self.swap_btn)
         hl.addWidget(self.play_btn)
         hl.addWidget(self.pause_btn)
+        hl.addWidget(self.stop_play_btn)
+        hl.addWidget(self.speed_combo)
 
         self.rviz_pane = RvizPane()
 
@@ -73,7 +78,10 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.swap_btn.clicked.connect(self.video.toggle_swap_rb)
         self.play_btn.clicked.connect(self._on_play)
         self.pause_btn.clicked.connect(self._on_pause)
+        self.stop_play_btn.clicked.connect(self._on_stop_play)
+        self.speed_combo.currentTextChanged.connect(self._on_speed)
         self.slider.sliderReleased.connect(self._on_seek)
+        self.video.progress.connect(self._on_progress)
         self._on_refresh()
 
     def _on_refresh(self):
@@ -172,6 +180,27 @@ class NewMainWindow(QtWidgets.QMainWindow):
             self.video._cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
         except Exception:
             pass
+    def _on_progress(self, cur: int, total: int):
+        try:
+            if total and total > 0:
+                self.slider.setRange(0, total)
+            self.slider.blockSignals(True)
+            self.slider.setValue(cur)
+            self.slider.blockSignals(False)
+        except Exception:
+            pass
+
+    def _on_stop_play(self):
+        self.video.stop_playback()
+
+    def _on_speed(self, text: str):
+        speed = 1.0
+        if text.endswith('x'):
+            try:
+                speed = float(text[:-1])
+            except Exception:
+                speed = 1.0
+        self.video.set_play_speed(speed)
 
 
 def main():
