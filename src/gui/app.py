@@ -63,6 +63,7 @@ class VideoWidget(QtWidgets.QLabel):
         self._total_frames = 0
         self._cur_frame = 0
         self._play_speed = 1.0
+        self._live_display_interval_ms = 1000.0 / 30.0
     def _to_bgr(self, frame):
         bgr = None
         if frame.ndim == 2:
@@ -216,11 +217,16 @@ class VideoWidget(QtWidgets.QLabel):
                 pass
         if self._paused:
             return
-        # Throttle GUI display for file playback to source fps (respect play speed)
+        # Throttle GUI display for file playback or live to target fps
         if self._is_file and self._display_interval_ms > 0.0:
             now_ms = time.monotonic() * 1000.0
             interval = self._display_interval_ms / max(0.1, self._play_speed)
             if self._last_display_ts_ms and (now_ms - self._last_display_ts_ms) < interval:
+                return
+            self._last_display_ts_ms = now_ms
+        elif (not self._is_file) and self._live_display_interval_ms > 0.0:
+            now_ms = time.monotonic() * 1000.0
+            if self._last_display_ts_ms and (now_ms - self._last_display_ts_ms) < self._live_display_interval_ms:
                 return
             self._last_display_ts_ms = now_ms
         # Emit playback progress for file
@@ -237,7 +243,7 @@ class VideoWidget(QtWidgets.QLabel):
             qimg = QtGui.QImage(rgb.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
         else:
             qimg = QtGui.QImage(bgr.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_BGR888)
-        pix = QtGui.QPixmap.fromImage(qimg).scaled(self.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation)
+        pix = QtGui.QPixmap.fromImage(qimg).scaled(self.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.FastTransformation)
         self.setPixmap(pix)
 
     def toggle_swap_rb(self):
