@@ -26,3 +26,17 @@ USB-C 経由のビデオキャプチャをGUIで表示するMVP。
 
   python3 -m src.newapp.main
 
+
+## Windows の実行手順
+
+- 依存インストール（推奨: 仮想環境）
+  python -m venv .venv && .\.venv\Scripts\activate
+  pip install -U pip && pip install -r requirements.txt
+
+- 起動
+  python -m src.newapp.main
+
+- デバイス選択
+  コンボボックスに検出されたカメラ（DirectShow/MSMF）が表示されます。
+  開けない場合は別のエントリを選択してください。
+
