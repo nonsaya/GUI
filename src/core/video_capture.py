@@ -82,18 +82,27 @@ def list_devices() -> List[DeviceDescriptor]:
 
 def open_capture(device: Union[str, DeviceDescriptor]) -> cv2.VideoCapture:
     if isinstance(device, DeviceDescriptor):
+        # Try preferred backend first
+        candidates = []
         if device.backend is not None:
-            cap = cv2.VideoCapture(device.open_arg, device.backend)
-        else:
-            cap = cv2.VideoCapture(device.open_arg)
-        if not cap.isOpened():
-            raise RuntimeError(f"Failed to open capture: {device.display_name}")
-        # Probe one frame to validate stream (avoid silent failures like 'moov atom not found')
-        ok, _ = cap.read()
-        if not ok:
-            cap.release()
-            raise RuntimeError(f"Failed to read from: {device.display_name}")
-        return cap
+            candidates.append((device.open_arg, device.backend))
+        candidates.append((device.open_arg, None))  # fallback to CAP_ANY
+        last_err = None
+        for open_arg, backend in candidates:
+            try:
+                cap = cv2.VideoCapture(open_arg, backend) if backend is not None else cv2.VideoCapture(open_arg)
+                if not cap.isOpened():
+                    cap.release()
+                    raise RuntimeError("isOpened() failed")
+                ok, _ = cap.read()
+                if not ok:
+                    cap.release()
+                    raise RuntimeError("read() failed")
+                return cap
+            except Exception as e:
+                last_err = e
+                continue
+        raise RuntimeError(f"Failed to open capture: {device.display_name}: {last_err}")
     # Backward compatibility with string path/index
     cap = cv2.VideoCapture(device)
     if not cap.isOpened():

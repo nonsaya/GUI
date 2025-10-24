@@ -46,6 +46,16 @@ class NewMainWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(central)
         layout.addWidget(splitter)
 
+        # Auto-start the first selected device
+        QtCore.QTimer.singleShot(100, self._auto_start)
+
+    def _auto_start(self):
+        if self.combo.count() > 0:
+            try:
+                self._on_start()
+            except Exception:
+                pass
+
         self.refresh_btn.clicked.connect(self._on_refresh)
         self.start_btn.clicked.connect(self._on_start)
         self.stop_btn.clicked.connect(self.video.stop)
