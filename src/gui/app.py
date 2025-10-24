@@ -152,6 +152,9 @@ class VideoWidget(QtWidgets.QLabel):
 
     def toggle_swap_rb(self):
         self._swap_rb = not self._swap_rb
+        # force repaint with swapped channels
+        if self._last_frame is not None:
+            self._on_frame(self._last_frame)
 
     def _on_error(self, msg: str):
         # keep silent to avoid spamming; could surface once
