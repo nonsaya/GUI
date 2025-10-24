@@ -19,3 +19,10 @@ USB-C 経由のビデオキャプチャをGUIで表示するMVP。
   pip install -U pip && pip install -r requirements.txt
   python -m src.gui.app
 
+
+### 新GUIアプリ
+
+リポジトリ直下で実行:
+
+  python3 -m src.newapp.main
+
