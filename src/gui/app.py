@@ -76,9 +76,12 @@ class VideoWidget(QtWidgets.QLabel):
         if self._writer is not None:
             return
         # Determine size and fps
-        fps = (self._fps_ema or 0) or (self._cap.get(cv2.CAP_PROP_FPS) or 0)
-        if fps <= 10:
-            fps = 30
+        ema = self._fps_ema or 0
+        devfps = (self._cap.get(cv2.CAP_PROP_FPS) or 0)
+        fps = ema if ema > 0 else devfps
+        if fps <= 1:
+            fps = 30.0
+        fps = float(max(5.0, min(60.0, fps)))
         w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         # Prefer last captured frame to avoid racing with grabber
@@ -123,13 +126,27 @@ class VideoWidget(QtWidgets.QLabel):
             self._writer.write(frame)
         if self._paused:
             return
-        bgr = np.ascontiguousarray(frame)
-        if self._swap_rb:
-            bgr = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        h, w, ch = bgr.shape
-        bytes_per_line = ch * w
-        fmt = QtGui.QImage.Format.Format_RGB888 if self._swap_rb else QtGui.QImage.Format.Format_BGR888
-        qimg = QtGui.QImage(bgr.data, w, h, bytes_per_line, fmt)
+        # Convert NV12/YUY2 to BGR if detected; otherwise assume BGR
+        bgr = None
+        if frame.ndim == 2:
+            try:
+                bgr = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_NV12)
+            except Exception:
+                bgr = None
+        elif frame.ndim == 3 and frame.shape[2] == 2:
+            try:
+                bgr = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_YUY2)
+            except Exception:
+                bgr = None
+        if bgr is None:
+            bgr = np.ascontiguousarray(frame)
+        h, w = bgr.shape[:2]
+        bytes_per_line = 3 * w
+        if getattr(self, "_swap_rb", False):
+            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            qimg = QtGui.QImage(rgb.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
+        else:
+            qimg = QtGui.QImage(bgr.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_BGR888)
         pix = QtGui.QPixmap.fromImage(qimg).scaled(self.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation)
         self.setPixmap(pix)
 
