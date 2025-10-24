@@ -46,6 +46,21 @@ class VideoWidget(QtWidgets.QLabel):
         self._last_ts = None
         self._fps_ema = None
         self._swap_rb = False
+    def _to_bgr(self, frame):
+        bgr = None
+        if frame.ndim == 2:
+            try:
+                bgr = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_NV12)
+            except Exception:
+                bgr = None
+        elif frame.ndim == 3 and frame.shape[2] == 2:
+            try:
+                bgr = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_YUY2)
+            except Exception:
+                bgr = None
+        if bgr is None:
+            bgr = np.ascontiguousarray(frame)
+        return bgr
 
     def start(self, device):
         if self._cap is not None:
@@ -75,6 +90,8 @@ class VideoWidget(QtWidgets.QLabel):
             raise RuntimeError("Camera is not started")
         if self._writer is not None:
             return
+        if self._last_frame is None:
+            raise RuntimeError("No frame available yet; please wait a moment and try again")
         # Determine size and fps
         ema = self._fps_ema or 0
         devfps = (self._cap.get(cv2.CAP_PROP_FPS) or 0)
@@ -89,22 +106,40 @@ class VideoWidget(QtWidgets.QLabel):
             h, w = self._last_frame.shape[:2]
         if w <= 0 or h <= 0:
             raise RuntimeError("Invalid frame size for recording")
-        # Choose codec/container
-        out_path = path
-        lower = out_path.lower()
+        # Choose codec/container with fallback candidates
+        req = path
+        candidates = []
+        lower = req.lower()
         if lower.endswith('.avi'):
-            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+            candidates = [(req, 'MJPG'), (req, 'XVID')]
         elif lower.endswith('.mp4'):
-            # Some environments fail with mp4v without proper ffmpeg support; fallback to MJPG/AVI
-            out_path = out_path[:-4] + '.avi'
-            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+            # prefer robust AVI first even if .mp4 requested
+            candidates = [(req[:-4] + '.avi', 'MJPG'), (req[:-4] + '.avi', 'XVID'), (req, 'mp4v')]
         else:
-            out_path = out_path + '.avi'
-            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        self._writer = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
-        if not self._writer.isOpened():
-            self._writer = None
-            raise RuntimeError("Failed to open VideoWriter")
+            candidates = [(req + '.avi', 'MJPG'), (req + '.avi', 'XVID'), (req + '.mp4', 'mp4v')]
+
+        opened = False
+        out_path = None
+        for out_path, codec in candidates:
+            fourcc = cv2.VideoWriter_fourcc(*codec)
+            writer = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
+            if not writer.isOpened():
+                continue
+            # write a test frame to validate
+            test_bgr = self._to_bgr(self._last_frame)
+            if (test_bgr.shape[1], test_bgr.shape[0]) != (w, h):
+                test_bgr = cv2.resize(test_bgr, (w, h), interpolation=cv2.INTER_AREA)
+            try:
+                writer.write(test_bgr)
+                opened = True
+                self._writer = writer
+                break
+            except Exception:
+                writer.release()
+                opened = False
+                continue
+        if not opened:
+            raise RuntimeError("Failed to initialize any compatible VideoWriter (MJPG/XVID/mp4v)")
         self._record_path = out_path
         self._record_fps = int(fps)
         self._writer_size = (w, h)
@@ -130,20 +165,8 @@ class VideoWidget(QtWidgets.QLabel):
         # Convert NV12/YUY2 to BGR for writing/preview
         if self._paused:
             return
-        # Convert NV12/YUY2 to BGR if detected; otherwise assume BGR
-        bgr = None
-        if frame.ndim == 2:
-            try:
-                bgr = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_NV12)
-            except Exception:
-                bgr = None
-        elif frame.ndim == 3 and frame.shape[2] == 2:
-            try:
-                bgr = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_YUY2)
-            except Exception:
-                bgr = None
-        if bgr is None:
-            bgr = np.ascontiguousarray(frame)
+        # Convert NV12/YUY2 to BGR for writing/preview
+        bgr = self._to_bgr(frame)
         h, w = bgr.shape[:2]
         bytes_per_line = 3 * w
         if getattr(self, "_swap_rb", False):
