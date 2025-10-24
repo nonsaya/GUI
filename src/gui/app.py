@@ -95,7 +95,9 @@ class VideoWidget(QtWidgets.QLabel):
         if lower.endswith('.avi'):
             fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         elif lower.endswith('.mp4'):
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            # Some environments fail with mp4v without proper ffmpeg support; fallback to MJPG/AVI
+            out_path = out_path[:-4] + '.avi'
+            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         else:
             out_path = out_path + '.avi'
             fourcc = cv2.VideoWriter_fourcc(*'MJPG')
