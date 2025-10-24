@@ -72,7 +72,7 @@ class RvizPane(QtWidgets.QWidget):
         external_only = False
         if session_type == "wayland":
             env["QT_QPA_PLATFORM"] = "xcb"  # run via XWayland
-            external_only = True              # skip embedding under Wayland
+            # Try embedding under XWayland; if window id can't be found, fallback external
         else:
             # X11: prefer xcb for embeddability
             env["QT_QPA_PLATFORM"] = env.get("QT_QPA_PLATFORM", "xcb")
@@ -90,8 +90,8 @@ class RvizPane(QtWidgets.QWidget):
 
         # Skip embedding in external-only mode (e.g., Wayland/XWayland)
         if external_only:
-            self.status_label.setText("running (external)")
-            return
+            # Attempt embedding even under XWayland; if not found, remain external
+            pass
 
         win_id = self._find_rviz_window_id(self._rviz_proc.pid)
         if win_id is None:

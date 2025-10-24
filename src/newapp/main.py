@@ -1,3 +1,5 @@
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", os.environ.get("QT_QPA_PLATFORM", "xcb"))
 from PyQt6 import QtWidgets
 from src.gui.app import VideoWidget
 from src.core.video_capture import list_devices, DeviceDescriptor
