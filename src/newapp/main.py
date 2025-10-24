@@ -19,6 +19,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.stop_btn = QtWidgets.QPushButton("Stop")
         self.open_btn = QtWidgets.QPushButton("Open File")
         self.rec_btn = QtWidgets.QPushButton("Rec")
+        self.swap_btn = QtWidgets.QPushButton("Swap R/B")
 
         # Splitter: left (capture) | right (rviz)
         hl = QtWidgets.QHBoxLayout()
@@ -28,6 +29,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         hl.addWidget(self.stop_btn)
         hl.addWidget(self.open_btn)
         hl.addWidget(self.rec_btn)
+        hl.addWidget(self.swap_btn)
 
         self.rviz_pane = RvizPane()
 
@@ -61,6 +63,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.stop_btn.clicked.connect(self.video.stop)
         self.open_btn.clicked.connect(self._on_open_file)
         self.rec_btn.clicked.connect(self._on_toggle_rec)
+        self.swap_btn.clicked.connect(self.video.toggle_swap_rb)
         self._on_refresh()
 
     def _on_refresh(self):

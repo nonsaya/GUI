@@ -45,6 +45,7 @@ class VideoWidget(QtWidgets.QLabel):
         self._paused = False
         self._last_ts = None
         self._fps_ema = None
+        self._swap_rb = False
 
     def start(self, device):
         if self._cap is not None:
@@ -123,11 +124,17 @@ class VideoWidget(QtWidgets.QLabel):
         if self._paused:
             return
         bgr = np.ascontiguousarray(frame)
+        if self._swap_rb:
+            bgr = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         h, w, ch = bgr.shape
         bytes_per_line = ch * w
-        qimg = QtGui.QImage(bgr.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_BGR888)
+        fmt = QtGui.QImage.Format.Format_RGB888 if self._swap_rb else QtGui.QImage.Format.Format_BGR888
+        qimg = QtGui.QImage(bgr.data, w, h, bytes_per_line, fmt)
         pix = QtGui.QPixmap.fromImage(qimg).scaled(self.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation)
         self.setPixmap(pix)
+
+    def toggle_swap_rb(self):
+        self._swap_rb = not self._swap_rb
 
     def _on_error(self, msg: str):
         # keep silent to avoid spamming; could surface once

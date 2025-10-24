@@ -101,6 +101,16 @@ def open_capture(device: Union[str, DeviceDescriptor]) -> cv2.VideoCapture:
                     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 except Exception:
                     pass
+                # Try to limit FPS to 30 to avoid drop/fast-forward perception
+                try:
+                    cap.set(cv2.CAP_PROP_FPS, 30)
+                except Exception:
+                    pass
+                # Ensure backend returns BGR frames
+                try:
+                    cap.set(cv2.CAP_PROP_CONVERT_RGB, 1)
+                except Exception:
+                    pass
                 if not cap.isOpened():
                     cap.release()
                     raise RuntimeError("isOpened() failed")
