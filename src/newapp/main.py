@@ -20,6 +20,10 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.open_btn = QtWidgets.QPushButton("Open File")
         self.rec_btn = QtWidgets.QPushButton("Rec")
         self.swap_btn = QtWidgets.QPushButton("Swap R/B")
+        self.play_btn = QtWidgets.QPushButton("Play")
+        self.pause_btn = QtWidgets.QPushButton("Pause")
+        self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider.setRange(0, 0)
 
         # Splitter: left (capture) | right (rviz)
         hl = QtWidgets.QHBoxLayout()
@@ -30,6 +34,8 @@ class NewMainWindow(QtWidgets.QMainWindow):
         hl.addWidget(self.open_btn)
         hl.addWidget(self.rec_btn)
         hl.addWidget(self.swap_btn)
+        hl.addWidget(self.play_btn)
+        hl.addWidget(self.pause_btn)
 
         self.rviz_pane = RvizPane()
 
@@ -37,6 +43,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         cp_layout = QtWidgets.QVBoxLayout(capture_panel)
         cp_layout.addLayout(hl)
         cp_layout.addWidget(self.video, 1)
+        cp_layout.addWidget(self.slider)
 
         splitter = QtWidgets.QSplitter()
         splitter.setOrientation(QtCore.Qt.Orientation.Horizontal)
@@ -64,6 +71,9 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.open_btn.clicked.connect(self._on_open_file)
         self.rec_btn.clicked.connect(self._on_toggle_rec)
         self.swap_btn.clicked.connect(self.video.toggle_swap_rb)
+        self.play_btn.clicked.connect(self._on_play)
+        self.pause_btn.clicked.connect(self._on_pause)
+        self.slider.sliderReleased.connect(self._on_seek)
         self._on_refresh()
 
     def _on_refresh(self):
@@ -114,6 +124,12 @@ class NewMainWindow(QtWidgets.QMainWindow):
             return
         try:
             self.video.start(path)
+            # setup slider for file playback if frame count available
+            try:
+                total = int(self.video._total_frames)
+                self.slider.setRange(0, total if total > 0 else 0)
+            except Exception:
+                self.slider.setRange(0, 0)
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Open failed", str(e))
 
@@ -139,6 +155,23 @@ class NewMainWindow(QtWidgets.QMainWindow):
             self.rec_btn.setText("Stop Rec")
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Record failed", str(e))
+
+    def _on_play(self):
+        if self.video._grabber is not None:
+            self.video._grabber._paused = False
+
+    def _on_pause(self):
+        if self.video._grabber is not None:
+            self.video._grabber._paused = True
+
+    def _on_seek(self):
+        if self.video._cap is None or not self.video._is_file:
+            return
+        pos = self.slider.value()
+        try:
+            self.video._cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
+        except Exception:
+            pass
 
 
 def main():

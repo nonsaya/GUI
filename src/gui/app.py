@@ -16,10 +16,14 @@ class FrameGrabber(QThread):
         self._cap = cap
         self._running = True
         self._interval_ms = 0  # pacing interval for file playback
+        self._paused = False
 
     def run(self):
         while self._running:
             try:
+                if self._paused:
+                    self.msleep(10)
+                    continue
                 ok, frame = self._cap.read()
                 if not ok:
                     self.error.emit("Failed to read frame")
@@ -55,6 +59,8 @@ class VideoWidget(QtWidgets.QLabel):
         self._is_file = False
         self._display_interval_ms = 0.0
         self._last_display_ts_ms = 0.0
+        self._total_frames = 0
+        self._cur_frame = 0
     def _to_bgr(self, frame):
         bgr = None
         if frame.ndim == 2:
@@ -82,6 +88,12 @@ class VideoWidget(QtWidgets.QLabel):
         else:
             self._display_interval_ms = 0.0
         self._last_display_ts_ms = 0.0
+        if self._is_file:
+            try:
+                self._total_frames = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+            except Exception:
+                self._total_frames = 0
+            self._cur_frame = int(self._cap.get(cv2.CAP_PROP_POS_FRAMES)) or 0
         self._grabber = FrameGrabber(self._cap, self)
         if self._is_file and self._display_interval_ms > 0.0:
             self._grabber._interval_ms = int(self._display_interval_ms)
