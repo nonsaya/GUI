@@ -67,11 +67,12 @@ class RvizPane(QtWidgets.QWidget):
         # Sanitize Qt plugin paths leaked from OpenCV/PyQt to avoid xcb plugin mismatch
         env.pop("QT_PLUGIN_PATH", None)
         env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
-        # Choose platform according to session type
+        # Choose platform: use xcb even on Wayland (XWayland) to avoid missing wayland plugin
         session_type = env.get("XDG_SESSION_TYPE", "").lower()
+        external_only = False
         if session_type == "wayland":
-            # Wayland: run rviz2 externally (embedding unsupported), ensure wayland platform
-            env["QT_QPA_PLATFORM"] = "wayland"
+            env["QT_QPA_PLATFORM"] = "xcb"  # run via XWayland
+            external_only = True              # skip embedding under Wayland
         else:
             # X11: prefer xcb for embeddability
             env["QT_QPA_PLATFORM"] = env.get("QT_QPA_PLATFORM", "xcb")
@@ -87,9 +88,9 @@ class RvizPane(QtWidgets.QWidget):
             QtWidgets.QMessageBox.critical(self, "Failed to start rviz2", str(e))
             return
 
-        # Skip embedding on Wayland; show as external window
-        if env.get("QT_QPA_PLATFORM") == "wayland":
-            self.status_label.setText("running (external/wayland)")
+        # Skip embedding in external-only mode (e.g., Wayland/XWayland)
+        if external_only:
+            self.status_label.setText("running (external)")
             return
 
         win_id = self._find_rviz_window_id(self._rviz_proc.pid)
