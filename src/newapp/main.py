@@ -45,7 +45,10 @@ class NewMainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "No device", "V4L2 デバイスが見つかりません")
             return
         dev = self.combo.currentData()
-        self.video.start(dev)
+        try:
+            self.video.start(dev)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Start failed", str(e))
 
     def _on_open_file(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Video", "", "Video Files (*.mp4 *.avi *.mkv);;All Files (*)")

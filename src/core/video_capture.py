@@ -88,9 +88,18 @@ def open_capture(device: Union[str, DeviceDescriptor]) -> cv2.VideoCapture:
             cap = cv2.VideoCapture(device.open_arg)
         if not cap.isOpened():
             raise RuntimeError(f"Failed to open capture: {device.display_name}")
+        # Probe one frame to validate stream (avoid silent failures like 'moov atom not found')
+        ok, _ = cap.read()
+        if not ok:
+            cap.release()
+            raise RuntimeError(f"Failed to read from: {device.display_name}")
         return cap
     # Backward compatibility with string path/index
     cap = cv2.VideoCapture(device)
     if not cap.isOpened():
         raise RuntimeError(f"Failed to open capture: {device}")
+    ok, _ = cap.read()
+    if not ok:
+        cap.release()
+        raise RuntimeError(f"Failed to read from: {device}")
     return cap
