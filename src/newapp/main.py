@@ -312,27 +312,6 @@ class NewMainWindow(QtWidgets.QMainWindow):
             self._ssh_session = None
         pwd = self.ssh_pass.text() or None
         key = self.ssh_key.text() or None
-        # Prefer Paramiko; fallback to system ssh if it fails to start
-        try:
-            sess = ParamikoTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
-            def start_paramiko():
-                try:
-                    sess.start()
-                except Exception as e:
-                    raise e
-            # Start immediately; if raises, go to except
-            sess.start()
-            self._ssh_session = sess
-            using = "paramiko"
-        except Exception as _:
-            sess = SSHTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
-            try:
-                sess.start()
-                self._ssh_session = sess
-                using = "system-ssh"
-            except Exception as e2:
-                self.ssh_output.append(f"Failed to connect: {e2}\n")
-                return
         ansi_osc = re.compile(r"\x1b\][^\x07]*\x07")
         ansi_csi = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
         ansi_si  = re.compile(r"\x1b\([A-Za-z]")
@@ -345,7 +324,23 @@ class NewMainWindow(QtWidgets.QMainWindow):
         def on_out(s: str):
             if s:
                 self.ssh_out.emit(clean_ansi(s))
-        sess.on_output = on_out
+        # Prefer Paramiko; fallback to system ssh if it fails to start
+        try:
+            sess = ParamikoTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
+            sess.on_output = on_out  # register BEFORE start to capture banner
+            sess.start()
+            self._ssh_session = sess
+            using = "paramiko"
+        except Exception as _:
+            sess = SSHTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
+            sess.on_output = on_out  # register BEFORE start
+            try:
+                sess.start()
+                self._ssh_session = sess
+                using = "system-ssh"
+            except Exception as e2:
+                self.ssh_output.append(f"Failed to connect: {e2}\n")
+                return
         self.ssh_output.append(f"Connected to {user}@{host}:{port} via {using}\n")
 
     def _on_ssh_send(self):

@@ -51,6 +51,11 @@ class ParamikoTerminalSession:
         self.chan = self.client.get_transport().open_session()
         self.chan.get_pty(term='xterm', width=120, height=32)
         self.chan.invoke_shell()
+        # 最初のバナー/プロンプトを確実に拾うため軽くウェイク
+        try:
+            self.write("echo CONNECTED\n")
+        except Exception:
+            pass
         self._running = True
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
@@ -71,7 +76,9 @@ class ParamikoTerminalSession:
                         except Exception:
                             pass
                 else:
-                    self.chan.recv_ready()
+                    # small sleep to avoid busy loop
+                    import time
+                    time.sleep(0.05)
         finally:
             pass
 
