@@ -1,6 +1,7 @@
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", os.environ.get("QT_QPA_PLATFORM", "xcb"))
 from PyQt6 import QtWidgets, QtCore
+import re
 from src.gui.app import VideoWidget
 from src.core.video_capture import list_devices, DeviceDescriptor
 from src.rviz.embed import RvizPane
@@ -309,10 +310,18 @@ class NewMainWindow(QtWidgets.QMainWindow):
         pwd = self.ssh_pass.text() or None
         key = self.ssh_key.text() or None
         sess = SSHTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
+        ansi_osc = re.compile(r"\x1b\][^\x07]*\x07")
+        ansi_csi = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+        ansi_si  = re.compile(r"\x1b\([A-Za-z]")
+        def clean_ansi(t: str) -> str:
+            t = t.replace("\r", "")
+            t = ansi_osc.sub("", t)
+            t = ansi_csi.sub("", t)
+            t = ansi_si.sub("", t)
+            return t
         def on_out(s: str):
-            # Append simplifies cursor handling and avoids QTextCursor import issues
             if s:
-                self.ssh_output.append(s.rstrip("\n"))
+                self.ssh_output.append(clean_ansi(s).rstrip("\n"))
         sess.on_output = on_out
         try:
             sess.start()
