@@ -48,12 +48,31 @@ class ParamikoTerminalSession:
             allow_agent=False,
             timeout=10,
         )
-        self.chan = self.client.get_transport().open_session()
+        transport = self.client.get_transport()
+        if transport is not None:
+            try:
+                transport.set_keepalive(15)
+            except Exception:
+                pass
+        self.chan = transport.open_session() if transport else None
+        if self.chan is None:
+            raise RuntimeError("Failed to open SSH session channel")
         self.chan.get_pty(term='xterm', width=120, height=32)
         self.chan.invoke_shell()
-        # 最初のバナー/プロンプトを確実に拾うため軽くウェイク
+        # 起動直後のバナー/プロンプトを先に取り込む
         try:
-            self.write("echo CONNECTED\n")
+            import time
+            for _ in range(20):  # ~1s
+                if self.chan.recv_ready():
+                    data = self.chan.recv(4096)
+                    if data and self.on_output:
+                        try:
+                            self.on_output(data.decode('utf-8', errors='replace'))
+                        except Exception:
+                            pass
+                time.sleep(0.05)
+            # プロンプトを出させる
+            self.write("\n")
         except Exception:
             pass
         self._running = True
@@ -83,7 +102,7 @@ class ParamikoTerminalSession:
             pass
 
     def write(self, s: str) -> None:
-        if self.chan and self.chan.send_ready():
+        if self.chan:
             try:
                 self.chan.send(s)
             except Exception:
