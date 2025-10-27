@@ -159,7 +159,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         options = QtWidgets.QFileDialog.Option.DontUseNativeDialog
         self.video.pause_preview()
         try:
-            path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Recording", "output.avi", "AVI Video (*.avi);;MP4 Video (*.mp4)", options=options)
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Recording", "output.mp4", "MP4 Video (*.mp4)", options=options)
         finally:
             if (not self.video.is_recording()) and self.video._cap is not None:
                 self.video.resume_preview()
