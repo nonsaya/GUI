@@ -4,6 +4,7 @@ from PyQt6 import QtWidgets, QtCore
 from src.gui.app import VideoWidget
 from src.core.video_capture import list_devices, DeviceDescriptor
 from src.rviz.embed import RvizPane
+from src.core.ros2_topics import list_ros2_topics
 
 class NewMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -49,6 +50,15 @@ class NewMainWindow(QtWidgets.QMainWindow):
         hl.addWidget(self.speed_combo)
 
         self.rviz_pane = RvizPane()
+        # ROS2 Topics Pane
+        self.ros_panel = QtWidgets.QWidget()
+        ros_layout = QtWidgets.QVBoxLayout(self.ros_panel)
+        self.ros_refresh = QtWidgets.QPushButton("Refresh Topics")
+        self.ros_refresh.setStyleSheet("QPushButton{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:6px;} QPushButton:pressed{background-color:#505354;}")
+        self.ros_list = QtWidgets.QListWidget()
+        self.ros_list.setStyleSheet("QListWidget{background-color:#2b2b2b;color:#e0e0e0;border:1px solid #555;}")
+        ros_layout.addWidget(self.ros_refresh)
+        ros_layout.addWidget(self.ros_list, 1)
 
         capture_panel = QtWidgets.QWidget()
         capture_panel.setStyleSheet("background-color: #2b2b2b;")
@@ -61,6 +71,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         splitter.setOrientation(QtCore.Qt.Orientation.Horizontal)
         splitter.addWidget(capture_panel)
         splitter.addWidget(self.rviz_pane)
+        splitter.addWidget(self.ros_panel)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
 
@@ -89,7 +100,9 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.speed_combo.currentTextChanged.connect(self._on_speed)
         self.slider.sliderReleased.connect(self._on_seek)
         self.video.progress.connect(self._on_progress)
+        self.ros_refresh.clicked.connect(self._on_ros_refresh)
         self._on_refresh()
+        self._on_ros_refresh()
 
     def _on_refresh(self):
         self.combo.clear()
@@ -208,6 +221,15 @@ class NewMainWindow(QtWidgets.QMainWindow):
             except Exception:
                 speed = 1.0
         self.video.set_play_speed(speed)
+
+    def _on_ros_refresh(self):
+        self.ros_list.clear()
+        topics = list_ros2_topics()
+        if not topics:
+            self.ros_list.addItem("(no topics or ros2 not found)")
+            return
+        for t in topics:
+            self.ros_list.addItem(t)
 
 
 def main():
