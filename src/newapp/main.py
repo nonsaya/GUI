@@ -108,10 +108,6 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.ros_list.itemSelectionChanged.connect(self._on_ros_select)
         self._on_refresh()
         self._on_ros_refresh()
-        # auto-refresh every 5 seconds
-        self._ros_timer = QtCore.QTimer(self)
-        self._ros_timer.timeout.connect(self._on_ros_refresh)
-        self._ros_timer.start(5000)
 
     def _on_refresh(self):
         self.combo.clear()
