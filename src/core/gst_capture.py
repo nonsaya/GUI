@@ -48,24 +48,22 @@ class GStreamerCapture:
                 )
             ]
         else:
-            # 1080p30 優先、未対応ならフォールバック
+            # 互換性最優先 → シンプル → NV12 1080p30 指定 → MJPEG フォールバック
             candidates = [
                 (
-                    f"v4l2src device=\"{source}\" io-mode=mmap do-timestamp=true ! "
-                    f"video/x-raw,format=NV12,width=1920,height=1080,framerate=30/1 ! "
-                    f"queue leaky=downstream max-size-buffers=1 ! videoconvert n-threads=0 ! "
-                    f"video/x-raw,format=BGR,framerate=30/1 ! queue leaky=downstream max-size-buffers=1 ! "
-                    f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
-                ),
-                (
-                    f"v4l2src device=\"{source}\" io-mode=mmap do-timestamp=true ! "
-                    f"image/jpeg,width=1920,height=1080,framerate=30/1 ! jpegdec ! videoconvert n-threads=0 ! "
-                    f"video/x-raw,format=BGR,framerate=30/1 ! queue leaky=downstream max-size-buffers=1 ! "
-                    f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
-                ),
-                (
-                    f"v4l2src device=\"{source}\" do-timestamp=true ! videoconvert n-threads=0 ! "
+                    f"v4l2src device=\"{source}\" ! videoconvert n-threads=0 ! "
                     f"video/x-raw,format=BGR ! queue leaky=downstream max-size-buffers=1 ! "
+                    f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+                ),
+                (
+                    f"v4l2src device=\"{source}\" do-timestamp=true ! "
+                    f"video/x-raw,format=NV12,width=1920,height=1080,framerate=30/1 ! "
+                    f"videoconvert n-threads=0 ! video/x-raw,format=BGR,framerate=30/1 ! "
+                    f"queue leaky=downstream max-size-buffers=1 ! appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+                ),
+                (
+                    f"v4l2src device=\"{source}\" do-timestamp=true ! image/jpeg,framerate=30/1 ! jpegdec ! "
+                    f"videoconvert n-threads=0 ! video/x-raw,format=BGR,framerate=30/1 ! queue leaky=downstream max-size-buffers=1 ! "
                     f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
                 ),
             ]
