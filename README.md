@@ -48,3 +48,17 @@ USB-C 経由のビデオキャプチャをGUIで表示するMVP。
 - 停止: "Stop RViz2"
 - 失敗時: 外部ウィンドウとして起動します（埋め込めない場合）
 
+
+### GStreamer バックエンドを使う
+
+依存インストール（Ubuntu）:
+
+  sudo apt update && sudo apt install -y \
+    gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+    python3-gi gir1.2-gst-1.0
+
+起動（GStreamer使用）:
+
+  USE_GST=1 python3 -m src.newapp.main
+

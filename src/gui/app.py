@@ -6,6 +6,7 @@ from src.core.video_capture import list_devices, DeviceDescriptor, open_capture
 import time
 import os
 from src.core.ffmpeg_writer import FFMpegWriter
+from src.core.gst_capture import GStreamerCapture
 
 class FrameGrabber(QThread):
     frame = pyqtSignal(object)
@@ -84,7 +85,15 @@ class VideoWidget(QtWidgets.QLabel):
         if self._cap is not None:
             self.stop()
         self._is_file = isinstance(device, str) and os.path.exists(str(device))
-        self._cap = open_capture(device)
+        # backend selection: env USE_GST=1 to use GStreamer
+        use_gst = os.environ.get("USE_GST", "0") == "1"
+        if use_gst:
+            gst = GStreamerCapture()
+            if not gst.open(device if isinstance(device, str) else str(device)):
+                raise RuntimeError("Failed to open GStreamer pipeline")
+            self._cap = gst  # type: ignore
+        else:
+            self._cap = open_capture(device)
         fps_val = self._cap.get(cv2.CAP_PROP_FPS) or 0.0
         if self._is_file and fps_val and fps_val > 1.0:
             self._display_interval_ms = 1000.0 / float(fps_val)
