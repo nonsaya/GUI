@@ -124,15 +124,25 @@ class NewMainWindow(QtWidgets.QMainWindow):
         splitter.setStretchFactor(0, 1)
 
         layout = QtWidgets.QVBoxLayout(central)
-        # 上部バーにRViz2制御ボタンだけを追加
+        # 上部バーにRViz2制御ボタンだけを追加（固定高さでコンパクトに）
+        self.rviz_pane.start_btn.setFixedHeight(28)
+        self.rviz_pane.stop_btn.setFixedHeight(28)
+        self.rviz_pane.attach_btn.setFixedHeight(28)
         rviz_bar = QtWidgets.QHBoxLayout()
+        rviz_bar.setContentsMargins(0, 0, 0, 0)
+        rviz_bar.setSpacing(6)
         rviz_bar.addWidget(self.rviz_pane.start_btn)
         rviz_bar.addWidget(self.rviz_pane.stop_btn)
         rviz_bar.addWidget(self.rviz_pane.attach_btn)
         rviz_bar.addStretch(1)
         rviz_bar.addWidget(self.rviz_pane.status_label)
 
-        layout.addLayout(rviz_bar)
+        rviz_bar_widget = QtWidgets.QWidget()
+        rviz_bar_widget.setLayout(rviz_bar)
+        rviz_bar_widget.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Fixed)
+        rviz_bar_widget.setMaximumHeight(36)
+
+        layout.addWidget(rviz_bar_widget)
         layout.addWidget(splitter)
 
         # Auto-start the first selected device
