@@ -65,6 +65,10 @@ class VideoWidget(QtWidgets.QLabel):
         self._cur_frame = 0
         self._play_speed = 1.0
         self._live_display_interval_ms = 1000.0 / 30.0
+        # recording pacing (force constant 30 fps)
+        self._rec_target_fps = 30.0
+        self._rec_start_ts = None
+        self._rec_written = 0
     def _to_bgr(self, frame):
         bgr = None
         if frame.ndim == 2:
@@ -154,12 +158,8 @@ class VideoWidget(QtWidgets.QLabel):
         if self._last_frame is None:
             raise RuntimeError("No frame available yet; please wait a moment and try again")
         # Determine size and fps
-        ema = self._fps_ema or 0
-        devfps = (self._cap.get(cv2.CAP_PROP_FPS) or 0)
-        fps = ema if ema > 0 else devfps
-        if fps <= 1:
-            fps = 30.0
-        fps = float(max(5.0, min(60.0, fps)))
+        # Force 30 fps recording
+        fps = 30.0
         # Determine output size from the actual BGR frame (after conversion)
         probe_bgr = self._to_bgr(self._last_frame)
         h, w = probe_bgr.shape[:2]
@@ -175,6 +175,9 @@ class VideoWidget(QtWidgets.QLabel):
         self._record_path = out_mp4
         self._record_fps = int(fps)
         self._writer_size = (w, h)
+        self._rec_target_fps = fps
+        self._rec_start_ts = time.monotonic()
+        self._rec_written = 0
 
     def stop_recording(self):
         if self._writer is not None:
@@ -199,19 +202,33 @@ class VideoWidget(QtWidgets.QLabel):
         self._last_ts = now
         # Convert NV12/YUY2 to BGR for writing/preview
         bgr = self._to_bgr(frame)
-        # Write BGR frame to writer/ffmpeg
+        # Write BGR frame to writer/ffmpeg with constant 30 fps pacing (duplicate if needed)
         target_size = getattr(self, "_writer_size", (bgr.shape[1], bgr.shape[0]))
         wbgr = bgr if (bgr.shape[1], bgr.shape[0]) == target_size else cv2.resize(bgr, target_size, interpolation=cv2.INTER_AREA)
-        if self._writer is not None:
-            try:
-                self._writer.write(wbgr)
-            except Exception:
-                pass
-        elif self._ff is not None:
-            try:
-                self._ff.write(wbgr)
-            except Exception:
-                pass
+        if (self._writer is not None) or (self._ff is not None):
+            now = time.monotonic()
+            if self._rec_start_ts is None:
+                self._rec_start_ts = now
+            elapsed = max(0.0, now - self._rec_start_ts)
+            target_frames = int(round(elapsed * self._rec_target_fps))
+            # ensure at least one frame on first call
+            if self._rec_written == 0 and target_frames == 0:
+                target_frames = 1
+            frames_to_write = max(0, target_frames - self._rec_written)
+            if frames_to_write == 0:
+                frames_to_write = 1  # write at least one per incoming frame
+            for _ in range(frames_to_write):
+                if self._writer is not None:
+                    try:
+                        self._writer.write(wbgr)
+                    except Exception:
+                        pass
+                elif self._ff is not None:
+                    try:
+                        self._ff.write(wbgr)
+                    except Exception:
+                        pass
+                self._rec_written += 1
         if self._paused:
             return
         # Throttle GUI display for file playback or live to target fps
