@@ -54,7 +54,7 @@ class SSHTerminalSession:
         )
         # Nudge remote to show prompt quickly
         try:
-            self.write("\n")
+            self.write("echo CONNECTED && stty -echo && echo READY\n")
         except Exception:
             pass
         self._running = True

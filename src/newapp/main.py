@@ -310,9 +310,9 @@ class NewMainWindow(QtWidgets.QMainWindow):
         key = self.ssh_key.text() or None
         sess = SSHTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
         def on_out(s: str):
-            self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
-            self.ssh_output.insertPlainText(s)
-            self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
+            # Append simplifies cursor handling and avoids QTextCursor import issues
+            if s:
+                self.ssh_output.append(s.rstrip("\n"))
         sess.on_output = on_out
         try:
             sess.start()
