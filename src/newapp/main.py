@@ -297,7 +297,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
                 pass
             self._ssh_session = None
         pwd = self.ssh_pass.text() or None
-        sess = SSHTerminalSession(host, user, port, password=pwd)
+        sess = SSHTerminalSession(host, user, port, password=pwd, accept_new_hostkey=True)
         def on_out(s: str):
             self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
             self.ssh_output.insertPlainText(s)
@@ -319,6 +319,12 @@ class NewMainWindow(QtWidgets.QMainWindow):
             self._ssh_session.write(cmd)
         except Exception:
             pass
+        # Allow Ctrl+C as ^C
+        if cmd.strip().lower() in ["^c", "\u0003"]:
+            try:
+                self._ssh_session.write("\x03")
+            except Exception:
+                pass
 
 
 def main():

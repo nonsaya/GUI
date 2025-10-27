@@ -45,6 +45,7 @@ class SSHTerminalSession:
             stdout=self.slave_fd,
             stderr=self.slave_fd,
             close_fds=True,
+            preexec_fn=os.setsid,
         )
         self._running = True
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
