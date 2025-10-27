@@ -38,21 +38,50 @@ class GStreamerCapture:
         if Gst is None:
             return False
         self._is_file = not source.startswith("/dev/video")
+        candidates = []
         if self._is_file:
-            launch = (
-                f"filesrc location=\"{source}\" ! decodebin ! videoconvert ! "
-                f"video/x-raw,format=BGR ! queue leaky=downstream max-size-buffers=1 ! "
-                f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
-            )
+            candidates = [
+                (
+                    f"filesrc location=\"{source}\" ! decodebin ! videorate drop-only=true max-rate=30 ! "
+                    f"videoconvert n-threads=0 ! video/x-raw,format=BGR ! queue leaky=downstream max-size-buffers=1 ! "
+                    f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+                )
+            ]
         else:
-            launch = (
-                f"v4l2src device=\"{source}\" io-mode=dmabuf ! videoconvert ! "
-                f"video/x-raw,format=BGR ! queue leaky=downstream max-size-buffers=1 ! "
-                f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
-            )
-        pipeline = Gst.parse_launch(launch)
-        if not isinstance(pipeline, Gst.Pipeline):
+            # 1080p30 優先、未対応ならフォールバック
+            candidates = [
+                (
+                    f"v4l2src device=\"{source}\" io-mode=mmap do-timestamp=true ! "
+                    f"video/x-raw,format=NV12,width=1920,height=1080,framerate=30/1 ! "
+                    f"queue leaky=downstream max-size-buffers=1 ! videoconvert n-threads=0 ! "
+                    f"video/x-raw,format=BGR,framerate=30/1 ! queue leaky=downstream max-size-buffers=1 ! "
+                    f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+                ),
+                (
+                    f"v4l2src device=\"{source}\" io-mode=mmap do-timestamp=true ! "
+                    f"image/jpeg,width=1920,height=1080,framerate=30/1 ! jpegdec ! videoconvert n-threads=0 ! "
+                    f"video/x-raw,format=BGR,framerate=30/1 ! queue leaky=downstream max-size-buffers=1 ! "
+                    f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+                ),
+                (
+                    f"v4l2src device=\"{source}\" do-timestamp=true ! videoconvert n-threads=0 ! "
+                    f"video/x-raw,format=BGR ! queue leaky=downstream max-size-buffers=1 ! "
+                    f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+                ),
+            ]
+
+        pipeline = None
+        for launch in candidates:
+            try:
+                p = Gst.parse_launch(launch)
+                if isinstance(p, Gst.Pipeline):
+                    pipeline = p
+                    break
+            except Exception:
+                continue
+        if pipeline is None:
             return False
+
         self._pipeline = pipeline
         self._appsink = pipeline.get_by_name("sink")  # type: ignore
         if self._appsink is None:
