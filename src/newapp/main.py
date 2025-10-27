@@ -92,7 +92,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         preferred = -1
         for i in range(self.combo.count()):
             dev = self.combo.itemData(i)
-            if isinstance(dev.open_arg, str) and dev.open_arg == "/dev/video2":
+            if isinstance(dev.open_arg, str) and dev.open_arg == "/dev/video0":
                 try:
                     from src.core.video_capture import open_capture
                     cap = open_capture(dev)

@@ -110,8 +110,10 @@ class VideoWidget(QtWidgets.QLabel):
         else:
             self._cap = open_capture(src_str)
         fps_val = self._cap.get(cv2.CAP_PROP_FPS) or 0.0
-        if self._is_file and fps_val and fps_val > 1.0:
-            self._display_interval_ms = 1000.0 / float(fps_val)
+        if self._is_file:
+            # ファイル再生はfpsが取得できない環境があるので安全な既定値を使用
+            fps_use = float(fps_val) if fps_val and fps_val > 1.0 else 30.0
+            self._display_interval_ms = 1000.0 / fps_use
         else:
             self._display_interval_ms = 0.0
         self._last_display_ts_ms = 0.0
