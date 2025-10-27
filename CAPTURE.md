@@ -29,6 +29,15 @@ USE_GST=1 python3 -m src.newapp.main
   - 出力は常に 30fps（VLC のプロパティで確認可能）
 - 再生: `Open File` → Play/Pause/Stop、スライダーでシーク、速度は `0.5x/1x/2x`
 
+### RViz2（外部ウィンドウ表示）
+- GUI上部にある `Start RViz2` / `Stop RViz2` / `Attach` ボタンのみで操作します。
+- RViz2は外部ウィンドウとして起動します（Wayland/Xorg どちらでも外部表示）。
+
+### SSH ターミナル
+- HostName / User / Port を入力し、必要に応じて Identity file（例: `~/.ssh/id_ed25519`）または Password を設定して `Connect`。
+- 接続後、下部の入力欄でコマンドを入力して Enter。出力は上のテキストエリアに追記されます。
+- プロンプト（`user@host:`）部分のみ緑色で強調表示されます。
+
 ## 推奨設定（滑らかさ優先）
 - デバイスを 1920x1080@30 もしくは 1280x720@30 に固定
 ```bash
