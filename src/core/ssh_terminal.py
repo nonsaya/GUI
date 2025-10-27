@@ -14,25 +14,31 @@ class SSHTerminalSession:
     - Exposes write() for input and a background reader with callback for output.
     """
 
-    def __init__(self, host: str, user: str, port: int = 22, identity_file: Optional[str] = None):
+    def __init__(self, host: str, user: str, port: int = 22, identity_file: Optional[str] = None, password: Optional[str] = None, accept_new_hostkey: bool = True):
         self.host = host
         self.user = user
         self.port = port
         self.identity_file = identity_file
+        self.password = password
+        self.accept_new_hostkey = accept_new_hostkey
         self.proc: Optional[subprocess.Popen] = None
         self.master_fd: Optional[int] = None
         self.slave_fd: Optional[int] = None
         self._reader_thread: Optional[threading.Thread] = None
         self._running = False
         self.on_output = None  # callback: (str) -> None
+        self._password_sent = False
 
     def start(self) -> None:
         if self.proc is not None:
             return
         self.master_fd, self.slave_fd = pty.openpty()
-        cmd = ["ssh", "-tt", f"{self.user}@{self.host}", "-p", str(self.port)]
+        cmd = ["ssh"]
+        if self.accept_new_hostkey:
+            cmd += ["-o", "StrictHostKeyChecking=accept-new"]
+        cmd += ["-tt", f"{self.user}@{self.host}", "-p", str(self.port)]
         if self.identity_file:
-            cmd = ["ssh", "-i", self.identity_file, "-tt", f"{self.user}@{self.host}", "-p", str(self.port)]
+            cmd = ["ssh", "-i", self.identity_file, "-o", "StrictHostKeyChecking=accept-new", "-tt", f"{self.user}@{self.host}", "-p", str(self.port)]
         self.proc = subprocess.Popen(
             cmd,
             stdin=self.slave_fd,
@@ -57,9 +63,23 @@ class SSHTerminalSession:
                         if not data:
                             self._running = False
                             break
+                        text = data.decode("utf-8", errors="replace")
+                        # Handle prompts
+                        low = text.lower()
+                        if "(yes/no)" in low:
+                            try:
+                                self.write("yes\n")
+                            except Exception:
+                                pass
+                        if ("password:" in low or "'s password:" in low or "password for" in low) and self.password and not self._password_sent:
+                            try:
+                                self.write(self.password + "\n")
+                                self._password_sent = True
+                            except Exception:
+                                pass
                         if self.on_output:
                             try:
-                                self.on_output(data.decode("utf-8", errors="replace"))
+                                self.on_output(text)
                             except Exception:
                                 pass
                     except OSError:
@@ -75,6 +95,10 @@ class SSHTerminalSession:
             os.write(self.master_fd, s.encode("utf-8", errors="replace"))
         except OSError:
             pass
+
+    def set_password(self, password: Optional[str]) -> None:
+        self.password = password
+        self._password_sent = False
 
     def stop(self) -> None:
         self._running = False

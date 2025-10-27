@@ -71,11 +71,16 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.ssh_host = QtWidgets.QLineEdit("192.168.0.56")
         self.ssh_user = QtWidgets.QLineEdit("nonsaya-r")
         self.ssh_port = QtWidgets.QLineEdit("22")
+        self.ssh_pass = QtWidgets.QLineEdit("")
+        self.ssh_pass.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+        self.ssh_pass.setPlaceholderText("Password (optional if key auth)")
         for w in [self.ssh_host, self.ssh_user, self.ssh_port]:
             w.setStyleSheet("QLineEdit{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
+        self.ssh_pass.setStyleSheet("QLineEdit{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
         form.addRow("HostName", self.ssh_host)
         form.addRow("User", self.ssh_user)
         form.addRow("Port", self.ssh_port)
+        form.addRow("Password", self.ssh_pass)
         self.ssh_connect = QtWidgets.QPushButton("Connect")
         self.ssh_connect.setStyleSheet("QPushButton{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:6px;} QPushButton:pressed{background-color:#505354;}")
         self.ssh_output = QtWidgets.QTextEdit()
@@ -291,7 +296,8 @@ class NewMainWindow(QtWidgets.QMainWindow):
             except Exception:
                 pass
             self._ssh_session = None
-        sess = SSHTerminalSession(host, user, port)
+        pwd = self.ssh_pass.text() or None
+        sess = SSHTerminalSession(host, user, port, password=pwd)
         def on_out(s: str):
             self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
             self.ssh_output.insertPlainText(s)
