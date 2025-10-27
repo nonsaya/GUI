@@ -84,16 +84,31 @@ class VideoWidget(QtWidgets.QLabel):
     def start(self, device):
         if self._cap is not None:
             self.stop()
-        self._is_file = isinstance(device, str) and os.path.exists(str(device))
+        # resolve source path/index
+        src = None
+        if isinstance(device, str):
+            src = device
+        else:
+            try:
+                # DeviceDescriptor or similar
+                src = getattr(device, "open_arg", device)
+            except Exception:
+                src = str(device)
+        # decide file vs camera
+        src_str = str(src)
+        self._is_file = os.path.isfile(src_str)
         # backend selection: env USE_GST=1 to use GStreamer
         use_gst = os.environ.get("USE_GST", "0") == "1"
         if use_gst:
+            # normalize integer index to /dev/videoX on Linux if needed
+            if not self._is_file and src_str.isdigit():
+                src_str = f"/dev/video{src_str}"
             gst = GStreamerCapture()
-            if not gst.open(device if isinstance(device, str) else str(device)):
+            if not gst.open(src_str):
                 raise RuntimeError("Failed to open GStreamer pipeline")
             self._cap = gst  # type: ignore
         else:
-            self._cap = open_capture(device)
+            self._cap = open_capture(src_str)
         fps_val = self._cap.get(cv2.CAP_PROP_FPS) or 0.0
         if self._is_file and fps_val and fps_val > 1.0:
             self._display_interval_ms = 1000.0 / float(fps_val)

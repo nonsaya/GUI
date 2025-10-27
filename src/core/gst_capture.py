@@ -41,12 +41,14 @@ class GStreamerCapture:
         if self._is_file:
             launch = (
                 f"filesrc location=\"{source}\" ! decodebin ! videoconvert ! "
-                f"video/x-raw,format=BGR ! appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+                f"video/x-raw,format=BGR ! queue leaky=downstream max-size-buffers=1 ! "
+                f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
             )
         else:
             launch = (
-                f"v4l2src device=\"{source}\" ! videoconvert ! "
-                f"video/x-raw,format=BGR ! appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+                f"v4l2src device=\"{source}\" io-mode=dmabuf ! videoconvert ! "
+                f"video/x-raw,format=BGR ! queue leaky=downstream max-size-buffers=1 ! "
+                f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
             )
         pipeline = Gst.parse_launch(launch)
         if not isinstance(pipeline, Gst.Pipeline):
