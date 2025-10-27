@@ -7,6 +7,7 @@ from src.core.video_capture import list_devices, DeviceDescriptor
 from src.rviz.embed import RvizPane
 from src.core.ros2_topics import list_ros2_topics, get_topic_type, get_topic_sample
 from src.core.ssh_terminal import SSHTerminalSession
+from src.core.ssh_paramiko import ParamikoTerminalSession
 
 class NewMainWindow(QtWidgets.QMainWindow):
     ssh_out = QtCore.pyqtSignal(str)
@@ -311,7 +312,27 @@ class NewMainWindow(QtWidgets.QMainWindow):
             self._ssh_session = None
         pwd = self.ssh_pass.text() or None
         key = self.ssh_key.text() or None
-        sess = SSHTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
+        # Prefer Paramiko; fallback to system ssh if it fails to start
+        try:
+            sess = ParamikoTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
+            def start_paramiko():
+                try:
+                    sess.start()
+                except Exception as e:
+                    raise e
+            # Start immediately; if raises, go to except
+            sess.start()
+            self._ssh_session = sess
+            using = "paramiko"
+        except Exception as _:
+            sess = SSHTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
+            try:
+                sess.start()
+                self._ssh_session = sess
+                using = "system-ssh"
+            except Exception as e2:
+                self.ssh_output.append(f"Failed to connect: {e2}\n")
+                return
         ansi_osc = re.compile(r"\x1b\][^\x07]*\x07")
         ansi_csi = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
         ansi_si  = re.compile(r"\x1b\([A-Za-z]")
@@ -325,12 +346,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
             if s:
                 self.ssh_out.emit(clean_ansi(s))
         sess.on_output = on_out
-        try:
-            sess.start()
-            self._ssh_session = sess
-            self.ssh_output.append(f"Connected to {user}@{host}:{port}\n")
-        except Exception as e:
-            self.ssh_output.append(f"Failed to connect: {e}\n")
+        self.ssh_output.append(f"Connected to {user}@{host}:{port} via {using}\n")
 
     def _on_ssh_send(self):
         if self._ssh_session is None:
