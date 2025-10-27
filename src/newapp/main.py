@@ -118,13 +118,21 @@ class NewMainWindow(QtWidgets.QMainWindow):
         splitter = QtWidgets.QSplitter()
         splitter.setOrientation(QtCore.Qt.Orientation.Horizontal)
         splitter.addWidget(capture_panel)
-        splitter.addWidget(self.rviz_pane)
+        # RViz2 は外部表示に切り替えたため、専用スペースは追加しない
         splitter.addWidget(self.ros_panel)
         splitter.addWidget(self.ssh_panel)
         splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
 
         layout = QtWidgets.QVBoxLayout(central)
+        # 上部バーにRViz2制御ボタンだけを追加
+        rviz_bar = QtWidgets.QHBoxLayout()
+        rviz_bar.addWidget(self.rviz_pane.start_btn)
+        rviz_bar.addWidget(self.rviz_pane.stop_btn)
+        rviz_bar.addWidget(self.rviz_pane.attach_btn)
+        rviz_bar.addStretch(1)
+        rviz_bar.addWidget(self.rviz_pane.status_label)
+
+        layout.addLayout(rviz_bar)
         layout.addWidget(splitter)
 
         # Auto-start the first selected device
