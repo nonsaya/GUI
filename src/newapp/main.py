@@ -5,6 +5,7 @@ from src.gui.app import VideoWidget
 from src.core.video_capture import list_devices, DeviceDescriptor
 from src.rviz.embed import RvizPane
 from src.core.ros2_topics import list_ros2_topics, get_topic_type, get_topic_sample
+from src.core.ssh_terminal import SSHTerminalSession
 
 class NewMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -63,6 +64,31 @@ class NewMainWindow(QtWidgets.QMainWindow):
         ros_layout.addWidget(self.ros_refresh)
         ros_layout.addWidget(self.ros_list, 1)
         ros_layout.addWidget(self.ros_info, 1)
+        # SSH Terminal Pane
+        self.ssh_panel = QtWidgets.QWidget()
+        ssh_layout = QtWidgets.QVBoxLayout(self.ssh_panel)
+        form = QtWidgets.QFormLayout()
+        self.ssh_host = QtWidgets.QLineEdit("192.168.0.56")
+        self.ssh_user = QtWidgets.QLineEdit("nonsaya-r")
+        self.ssh_port = QtWidgets.QLineEdit("22")
+        for w in [self.ssh_host, self.ssh_user, self.ssh_port]:
+            w.setStyleSheet("QLineEdit{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
+        form.addRow("HostName", self.ssh_host)
+        form.addRow("User", self.ssh_user)
+        form.addRow("Port", self.ssh_port)
+        self.ssh_connect = QtWidgets.QPushButton("Connect")
+        self.ssh_connect.setStyleSheet("QPushButton{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:6px;} QPushButton:pressed{background-color:#505354;}")
+        self.ssh_output = QtWidgets.QTextEdit()
+        self.ssh_output.setReadOnly(True)
+        self.ssh_output.setStyleSheet("QTextEdit{background-color:#1f1f1f;color:#e0e0e0;border:1px solid #555;}")
+        self.ssh_input = QtWidgets.QLineEdit()
+        self.ssh_input.setPlaceholderText("Enter command and press Enter")
+        self.ssh_input.setStyleSheet("QLineEdit{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
+        ssh_layout.addLayout(form)
+        ssh_layout.addWidget(self.ssh_connect)
+        ssh_layout.addWidget(self.ssh_output, 1)
+        ssh_layout.addWidget(self.ssh_input)
+        self._ssh_session = None
 
         capture_panel = QtWidgets.QWidget()
         capture_panel.setStyleSheet("background-color: #2b2b2b;")
@@ -76,6 +102,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         splitter.addWidget(capture_panel)
         splitter.addWidget(self.rviz_pane)
         splitter.addWidget(self.ros_panel)
+        splitter.addWidget(self.ssh_panel)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
 
@@ -106,6 +133,8 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.video.progress.connect(self._on_progress)
         self.ros_refresh.clicked.connect(self._on_ros_refresh)
         self.ros_list.itemSelectionChanged.connect(self._on_ros_select)
+        self.ssh_connect.clicked.connect(self._on_ssh_connect)
+        self.ssh_input.returnPressed.connect(self._on_ssh_send)
         self._on_refresh()
         self._on_ros_refresh()
 
@@ -248,6 +277,42 @@ class NewMainWindow(QtWidgets.QMainWindow):
         t = get_topic_type(topic)
         s = get_topic_sample(topic)
         self.ros_info.setPlainText(f"Type: {t}\n\nSample:\n{s}")
+
+    def _on_ssh_connect(self):
+        host = self.ssh_host.text().strip()
+        user = self.ssh_user.text().strip()
+        try:
+            port = int(self.ssh_port.text().strip() or "22")
+        except Exception:
+            port = 22
+        if self._ssh_session is not None:
+            try:
+                self._ssh_session.stop()
+            except Exception:
+                pass
+            self._ssh_session = None
+        sess = SSHTerminalSession(host, user, port)
+        def on_out(s: str):
+            self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
+            self.ssh_output.insertPlainText(s)
+            self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
+        sess.on_output = on_out
+        try:
+            sess.start()
+            self._ssh_session = sess
+            self.ssh_output.append(f"Connected to {user}@{host}:{port}\n")
+        except Exception as e:
+            self.ssh_output.append(f"Failed to connect: {e}\n")
+
+    def _on_ssh_send(self):
+        if self._ssh_session is None:
+            return
+        cmd = self.ssh_input.text() + "\n"
+        self.ssh_input.clear()
+        try:
+            self._ssh_session.write(cmd)
+        except Exception:
+            pass
 
 
 def main():
