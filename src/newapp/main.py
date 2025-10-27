@@ -9,6 +9,7 @@ from src.core.ros2_topics import list_ros2_topics, get_topic_type, get_topic_sam
 from src.core.ssh_terminal import SSHTerminalSession
 
 class NewMainWindow(QtWidgets.QMainWindow):
+    ssh_out = QtCore.pyqtSignal(str)
     def __init__(self):
         super().__init__()
         self.setWindowTitle("New GUI App with Capture")
@@ -151,6 +152,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.ssh_connect.clicked.connect(self._on_ssh_connect)
         self.ssh_key_browse.clicked.connect(self._on_ssh_browse)
         self.ssh_input.returnPressed.connect(self._on_ssh_send)
+        self.ssh_out.connect(self._append_ssh_output)
         self._on_refresh()
         self._on_ros_refresh()
 
@@ -321,7 +323,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
             return t
         def on_out(s: str):
             if s:
-                self.ssh_output.append(clean_ansi(s).rstrip("\n"))
+                self.ssh_out.emit(clean_ansi(s))
         sess.on_output = on_out
         try:
             sess.start()
@@ -348,6 +350,14 @@ class NewMainWindow(QtWidgets.QMainWindow):
                 self._ssh_session.write("\x03")
             except Exception:
                 pass
+
+    def _append_ssh_output(self, s: str):
+        if not s:
+            return
+        text = s.rstrip("\n")
+        self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
+        self.ssh_output.insertPlainText(text + "\n")
+        self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
 
     def _on_ssh_browse(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Identity File", os.path.expanduser("~/.ssh"), "All Files (*)")
