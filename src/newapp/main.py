@@ -98,6 +98,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.ssh_output = QtWidgets.QTextEdit()
         self.ssh_output.setReadOnly(True)
         self.ssh_output.setStyleSheet("QTextEdit{background-color:#1f1f1f;color:#e0e0e0;border:1px solid #555;}")
+        self._ssh_prompt_color = "#00ff7f"  # default Green
         # Color selector
         color_row = QtWidgets.QHBoxLayout()
         self.ssh_color = QtWidgets.QComboBox()
@@ -375,9 +376,24 @@ class NewMainWindow(QtWidgets.QMainWindow):
     def _append_ssh_output(self, s: str):
         if not s:
             return
-        text = s.rstrip("\n")
-        # append はGUIスレッドで安全に末尾改行付きで追記する
-        self.ssh_output.append(text)
+        # 1) 行に分割
+        lines = s.splitlines()
+        prompt_re = re.compile(r"^([A-Za-z0-9._-]+@[A-Za-z0-9._-]+:)(.*?)([$#])\s*$")
+        def esc(t: str) -> str:
+            return (t.replace("&", "&amp;")
+                      .replace("<", "&lt;")
+                      .replace(">", "&gt;"))
+        for line in lines:
+            m = prompt_re.match(line)
+            if m:
+                g1, g2, g3 = m.group(1), m.group(2), m.group(3)
+                html = (
+                    f'<span style="color:{self._ssh_prompt_color}; font-weight:600">{esc(g1)}</span>'
+                    f'{esc(g2)}{esc(g3)}'
+                )
+                self.ssh_output.append(html)
+            else:
+                self.ssh_output.append(line)
 
     def _on_ssh_color(self, name: str):
         mapping = {
@@ -388,8 +404,9 @@ class NewMainWindow(QtWidgets.QMainWindow):
             "Orange": "#ffa726",
             "Red": "#ff6e6e",
         }
-        col = mapping.get(name, "#e0e0e0")
-        self.ssh_output.setStyleSheet(f"QTextEdit{{background-color:#1f1f1f;color:{col};border:1px solid #555;}}")
+        self._ssh_prompt_color = mapping.get(name, "#00ff7f")
+        # 本文の色は固定（#e0e0e0）に戻す
+        self.ssh_output.setStyleSheet("QTextEdit{background-color:#1f1f1f;color:#e0e0e0;border:1px solid #555;}")
 
     def _on_ssh_browse(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Identity File", os.path.expanduser("~/.ssh"), "All Files (*)")
