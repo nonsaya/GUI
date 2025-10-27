@@ -34,3 +34,5 @@ PYTHONPATH=/home/nonsaya-x/repo/gui python3 -m src.gui.app
 - PyQt6 読み込み時の `undefined symbol ... Qt_6` エラー: PyQt6/Qt6 を 6.5.3 に固定。
 - 開けないデバイスがある場合: `/dev/video0`〜`/dev/video3` を順に選択し、利用可能なものを使用。
 
+
+> NOTE: 最新のドキュメントは CAPTURE.md を参照してください。
