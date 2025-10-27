@@ -4,7 +4,7 @@ from PyQt6 import QtWidgets, QtCore
 from src.gui.app import VideoWidget
 from src.core.video_capture import list_devices, DeviceDescriptor
 from src.rviz.embed import RvizPane
-from src.core.ros2_topics import list_ros2_topics
+from src.core.ros2_topics import list_ros2_topics, get_topic_type, get_topic_sample
 
 class NewMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -57,8 +57,12 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.ros_refresh.setStyleSheet("QPushButton{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:6px;} QPushButton:pressed{background-color:#505354;}")
         self.ros_list = QtWidgets.QListWidget()
         self.ros_list.setStyleSheet("QListWidget{background-color:#2b2b2b;color:#e0e0e0;border:1px solid #555;}")
+        self.ros_info = QtWidgets.QTextEdit()
+        self.ros_info.setReadOnly(True)
+        self.ros_info.setStyleSheet("QTextEdit{background-color:#1f1f1f;color:#e0e0e0;border:1px solid #555;}")
         ros_layout.addWidget(self.ros_refresh)
         ros_layout.addWidget(self.ros_list, 1)
+        ros_layout.addWidget(self.ros_info, 1)
 
         capture_panel = QtWidgets.QWidget()
         capture_panel.setStyleSheet("background-color: #2b2b2b;")
@@ -101,8 +105,13 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.slider.sliderReleased.connect(self._on_seek)
         self.video.progress.connect(self._on_progress)
         self.ros_refresh.clicked.connect(self._on_ros_refresh)
+        self.ros_list.itemSelectionChanged.connect(self._on_ros_select)
         self._on_refresh()
         self._on_ros_refresh()
+        # auto-refresh every 5 seconds
+        self._ros_timer = QtCore.QTimer(self)
+        self._ros_timer.timeout.connect(self._on_ros_refresh)
+        self._ros_timer.start(5000)
 
     def _on_refresh(self):
         self.combo.clear()
@@ -230,6 +239,15 @@ class NewMainWindow(QtWidgets.QMainWindow):
             return
         for t in topics:
             self.ros_list.addItem(t)
+    def _on_ros_select(self):
+        items = self.ros_list.selectedItems()
+        if not items:
+            self.ros_info.setPlainText("")
+            return
+        topic = items[0].text()
+        t = get_topic_type(topic)
+        s = get_topic_sample(topic)
+        self.ros_info.setPlainText(f"Type: {t}\n\nSample:\n{s}")
 
 
 def main():
