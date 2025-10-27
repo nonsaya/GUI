@@ -97,18 +97,20 @@ class VideoWidget(QtWidgets.QLabel):
         # decide file vs camera
         src_str = str(src)
         self._is_file = os.path.isfile(src_str)
-        # backend selection: env USE_GST=1 to use GStreamer
+        # backend selection: files use OpenCV(FFmpeg), cameras may use GStreamer (USE_GST=1)
         use_gst = os.environ.get("USE_GST", "0") == "1"
-        if use_gst:
-            # normalize integer index to /dev/videoX on Linux if needed
-            if not self._is_file and src_str.isdigit():
-                src_str = f"/dev/video{src_str}"
-            gst = GStreamerCapture()
-            if not gst.open(src_str):
-                raise RuntimeError("Failed to open GStreamer pipeline")
-            self._cap = gst  # type: ignore
-        else:
+        if self._is_file:
             self._cap = open_capture(src_str)
+        else:
+            if use_gst:
+                if src_str.isdigit():
+                    src_str = f"/dev/video{src_str}"
+                gst = GStreamerCapture()
+                if not gst.open(src_str):
+                    raise RuntimeError("Failed to open GStreamer pipeline")
+                self._cap = gst  # type: ignore
+            else:
+                self._cap = open_capture(src_str)
         fps_val = self._cap.get(cv2.CAP_PROP_FPS) or 0.0
         if self._is_file:
             # ファイル再生はfpsが取得できない環境があるので安全な既定値を使用
@@ -163,45 +165,14 @@ class VideoWidget(QtWidgets.QLabel):
         h, w = probe_bgr.shape[:2]
         if w <= 0 or h <= 0:
             raise RuntimeError("Invalid frame size for recording")
-        # Choose codec/container with fallback candidates
-        req = path
-        candidates = []
-        lower = req.lower()
-        if lower.endswith('.mp4'):
-            ff = FFMpegWriter()
-            if ff.is_available():
-                ff.open(req, w, h, fps)
-                self._ff = ff
-                self._record_path = req
-                self._record_fps = int(fps)
-                self._writer_size = (w, h)
-                return
-        if lower.endswith('.avi'):
-            candidates = [(req, 'XVID'), (req, 'MJPG')]
-        else:
-            candidates = [(req + '.avi', 'XVID'), (req + '.avi', 'MJPG')]
-
-        opened = False
-        out_path = None
-        for out_path, codec in candidates:
-            fourcc = cv2.VideoWriter_fourcc(*codec)
-            writer = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
-            if not writer.isOpened():
-                continue
-            # write a test frame to validate
-            test_bgr = probe_bgr if (probe_bgr.shape[1], probe_bgr.shape[0]) == (w, h) else cv2.resize(probe_bgr, (w, h), interpolation=cv2.INTER_AREA)
-            try:
-                writer.write(test_bgr)
-                opened = True
-                self._writer = writer
-                break
-            except Exception:
-                writer.release()
-                opened = False
-                continue
-        if not opened:
-            raise RuntimeError("Failed to initialize any compatible VideoWriter (MJPG/XVID/mp4v)")
-        self._record_path = out_path
+        # Always record MP4 via ffmpeg (libx264)
+        out_mp4 = path if path.lower().endswith('.mp4') else (path + '.mp4')
+        ff = FFMpegWriter()
+        if not ff.is_available():
+            raise RuntimeError("ffmpeg not available; cannot record MP4")
+        ff.open(out_mp4, w, h, fps)
+        self._ff = ff
+        self._record_path = out_mp4
         self._record_fps = int(fps)
         self._writer_size = (w, h)
 
@@ -244,13 +215,14 @@ class VideoWidget(QtWidgets.QLabel):
         if self._paused:
             return
         # Throttle GUI display for file playback or live to target fps
-        if self._is_file and self._display_interval_ms > 0.0:
+        if self._is_file:
+            # prefer container fps if known; otherwise 30
+            interval = self._display_interval_ms or (1000.0 / 30.0)
             now_ms = time.monotonic() * 1000.0
-            interval = self._display_interval_ms / max(0.1, self._play_speed)
             if self._last_display_ts_ms and (now_ms - self._last_display_ts_ms) < interval:
                 return
             self._last_display_ts_ms = now_ms
-        elif (not self._is_file) and self._live_display_interval_ms > 0.0:
+        else:
             now_ms = time.monotonic() * 1000.0
             if self._last_display_ts_ms and (now_ms - self._last_display_ts_ms) < self._live_display_interval_ms:
                 return
