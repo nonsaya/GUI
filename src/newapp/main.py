@@ -10,6 +10,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("New GUI App with Capture")
         central = QtWidgets.QWidget()
+        central.setStyleSheet("background-color: #2b2b2b;")
         self.setCentralWidget(central)
 
         self.video = VideoWidget()
@@ -45,6 +46,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.rviz_pane = RvizPane()
 
         capture_panel = QtWidgets.QWidget()
+        capture_panel.setStyleSheet("background-color: #2b2b2b;")
         cp_layout = QtWidgets.QVBoxLayout(capture_panel)
         cp_layout.addLayout(hl)
         cp_layout.addWidget(self.video, 1)
