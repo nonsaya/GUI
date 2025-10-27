@@ -98,11 +98,20 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.ssh_output = QtWidgets.QTextEdit()
         self.ssh_output.setReadOnly(True)
         self.ssh_output.setStyleSheet("QTextEdit{background-color:#1f1f1f;color:#e0e0e0;border:1px solid #555;}")
+        # Color selector
+        color_row = QtWidgets.QHBoxLayout()
+        self.ssh_color = QtWidgets.QComboBox()
+        self.ssh_color.addItems(["White","Green","Cyan","Yellow","Orange","Red"])
+        self.ssh_color.setCurrentText("Green")
+        self.ssh_color.setStyleSheet("QComboBox{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
+        color_row.addWidget(QtWidgets.QLabel("Text Color"))
+        color_row.addWidget(self.ssh_color)
         self.ssh_input = QtWidgets.QLineEdit()
         self.ssh_input.setPlaceholderText("Enter command and press Enter")
         self.ssh_input.setStyleSheet("QLineEdit{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
         ssh_layout.addLayout(form)
         ssh_layout.addWidget(self.ssh_connect)
+        ssh_layout.addLayout(color_row)
         ssh_layout.addWidget(self.ssh_output, 1)
         ssh_layout.addWidget(self.ssh_input)
         self._ssh_session = None
@@ -154,6 +163,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.ssh_key_browse.clicked.connect(self._on_ssh_browse)
         self.ssh_input.returnPressed.connect(self._on_ssh_send)
         self.ssh_out.connect(self._append_ssh_output)
+        self.ssh_color.currentTextChanged.connect(self._on_ssh_color)
         self._on_refresh()
         self._on_ros_refresh()
 
@@ -368,6 +378,18 @@ class NewMainWindow(QtWidgets.QMainWindow):
         text = s.rstrip("\n")
         # append はGUIスレッドで安全に末尾改行付きで追記する
         self.ssh_output.append(text)
+
+    def _on_ssh_color(self, name: str):
+        mapping = {
+            "White": "#e0e0e0",
+            "Green": "#00ff7f",
+            "Cyan": "#00e5ff",
+            "Yellow": "#ffd54f",
+            "Orange": "#ffa726",
+            "Red": "#ff6e6e",
+        }
+        col = mapping.get(name, "#e0e0e0")
+        self.ssh_output.setStyleSheet(f"QTextEdit{{background-color:#1f1f1f;color:{col};border:1px solid #555;}}")
 
     def _on_ssh_browse(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Identity File", os.path.expanduser("~/.ssh"), "All Files (*)")
