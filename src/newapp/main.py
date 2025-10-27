@@ -74,13 +74,22 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.ssh_pass = QtWidgets.QLineEdit("")
         self.ssh_pass.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
         self.ssh_pass.setPlaceholderText("Password (optional if key auth)")
+        self.ssh_key = QtWidgets.QLineEdit("")
+        self.ssh_key.setPlaceholderText("Identity file (e.g. ~/.ssh/id_ed25519)")
+        self.ssh_key_browse = QtWidgets.QPushButton("Browse…")
+        self.ssh_key_browse.setStyleSheet("QPushButton{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:6px;} QPushButton:pressed{background-color:#505354;}")
         for w in [self.ssh_host, self.ssh_user, self.ssh_port]:
             w.setStyleSheet("QLineEdit{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
         self.ssh_pass.setStyleSheet("QLineEdit{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
+        self.ssh_key.setStyleSheet("QLineEdit{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
         form.addRow("HostName", self.ssh_host)
         form.addRow("User", self.ssh_user)
         form.addRow("Port", self.ssh_port)
         form.addRow("Password", self.ssh_pass)
+        key_row = QtWidgets.QHBoxLayout()
+        key_row.addWidget(self.ssh_key, 1)
+        key_row.addWidget(self.ssh_key_browse)
+        form.addRow("Identity file", key_row)
         self.ssh_connect = QtWidgets.QPushButton("Connect")
         self.ssh_connect.setStyleSheet("QPushButton{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:6px;} QPushButton:pressed{background-color:#505354;}")
         self.ssh_output = QtWidgets.QTextEdit()
@@ -139,6 +148,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.ros_refresh.clicked.connect(self._on_ros_refresh)
         self.ros_list.itemSelectionChanged.connect(self._on_ros_select)
         self.ssh_connect.clicked.connect(self._on_ssh_connect)
+        self.ssh_key_browse.clicked.connect(self._on_ssh_browse)
         self.ssh_input.returnPressed.connect(self._on_ssh_send)
         self._on_refresh()
         self._on_ros_refresh()
@@ -297,7 +307,8 @@ class NewMainWindow(QtWidgets.QMainWindow):
                 pass
             self._ssh_session = None
         pwd = self.ssh_pass.text() or None
-        sess = SSHTerminalSession(host, user, port, password=pwd, accept_new_hostkey=True)
+        key = self.ssh_key.text() or None
+        sess = SSHTerminalSession(host, user, port, identity_file=key, password=pwd, accept_new_hostkey=True)
         def on_out(s: str):
             self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
             self.ssh_output.insertPlainText(s)
@@ -325,6 +336,11 @@ class NewMainWindow(QtWidgets.QMainWindow):
                 self._ssh_session.write("\x03")
             except Exception:
                 pass
+
+    def _on_ssh_browse(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Identity File", os.path.expanduser("~/.ssh"), "All Files (*)")
+        if path:
+            self.ssh_key.setText(path)
 
 
 def main():
