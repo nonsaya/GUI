@@ -43,8 +43,8 @@ class GStreamerCapture:
             candidates = [
                 (
                     f"filesrc location=\"{source}\" ! decodebin ! videorate drop-only=true max-rate=30 ! "
-                    f"videoconvert n-threads=0 ! video/x-raw,format=BGR ! queue leaky=downstream max-size-buffers=1 ! "
-                    f"appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+                    f"videoconvert n-threads=0 ! video/x-raw,format=BGR,framerate=30/1 ! queue leaky=downstream max-size-buffers=1 ! "
+                    f"appsink name=sink emit-signals=true sync=true max-buffers=1 drop=true"
                 )
             ]
         else:

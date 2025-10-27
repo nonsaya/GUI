@@ -270,6 +270,7 @@ class VideoWidget(QtWidgets.QLabel):
         else:
             qimg = QtGui.QImage(bgr.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_BGR888)
         pix = QtGui.QPixmap.fromImage(qimg).scaled(self.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.FastTransformation)
+        self.setStyleSheet("background-color: #2b2b2b;")
         self.setPixmap(pix)
 
     def toggle_swap_rb(self):
