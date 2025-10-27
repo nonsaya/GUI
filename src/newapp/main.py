@@ -324,6 +324,9 @@ class NewMainWindow(QtWidgets.QMainWindow):
     def _on_ssh_send(self):
         if self._ssh_session is None:
             return
+        if not self._ssh_session.is_alive():
+            self.ssh_output.append("(session ended)")
+            return
         cmd = self.ssh_input.text() + "\n"
         self.ssh_input.clear()
         try:

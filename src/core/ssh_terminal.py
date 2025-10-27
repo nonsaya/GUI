@@ -54,7 +54,7 @@ class SSHTerminalSession:
         )
         # Nudge remote to show prompt quickly
         try:
-            self.write("echo CONNECTED && stty -echo && echo READY\n")
+            self.write("echo CONNECTED\n")
         except Exception:
             pass
         self._running = True
@@ -106,6 +106,9 @@ class SSHTerminalSession:
             os.write(self.master_fd, s.encode("utf-8", errors="replace"))
         except OSError:
             pass
+
+    def is_alive(self) -> bool:
+        return bool(self.proc and self.proc.poll() is None)
 
     def set_password(self, password: Optional[str]) -> None:
         self.password = password
