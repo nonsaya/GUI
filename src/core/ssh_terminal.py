@@ -34,11 +34,16 @@ class SSHTerminalSession:
             return
         self.master_fd, self.slave_fd = pty.openpty()
         cmd = ["ssh"]
+        # Host key handling
         if self.accept_new_hostkey:
             cmd += ["-o", "StrictHostKeyChecking=accept-new"]
-        cmd += ["-tt", f"{self.user}@{self.host}", "-p", str(self.port)]
+        # If password is provided, prefer password/keyboard-interactive and disable pubkey to force prompt
+        if self.password:
+            cmd += ["-o", "PreferredAuthentications=password,keyboard-interactive", "-o", "PubkeyAuthentication=no"]
+        # Identity file if specified
         if self.identity_file:
-            cmd = ["ssh", "-i", self.identity_file, "-o", "StrictHostKeyChecking=accept-new", "-tt", f"{self.user}@{self.host}", "-p", str(self.port)]
+            cmd += ["-i", self.identity_file]
+        cmd += ["-tt", f"{self.user}@{self.host}", "-p", str(self.port)]
         self.proc = subprocess.Popen(
             cmd,
             stdin=self.slave_fd,
@@ -47,6 +52,11 @@ class SSHTerminalSession:
             close_fds=True,
             preexec_fn=os.setsid,
         )
+        # Nudge remote to show prompt quickly
+        try:
+            self.write("\n")
+        except Exception:
+            pass
         self._running = True
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
@@ -67,7 +77,7 @@ class SSHTerminalSession:
                         text = data.decode("utf-8", errors="replace")
                         # Handle prompts
                         low = text.lower()
-                        if "(yes/no)" in low:
+                        if "(yes/no)" in low or "continue connecting" in low:
                             try:
                                 self.write("yes\n")
                             except Exception:
