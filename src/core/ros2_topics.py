@@ -19,12 +19,25 @@ def get_topic_type(topic: str) -> str:
         return "(unknown)"
 
 
-def get_topic_sample(topic: str, timeout_sec: float = 1.5) -> str:
-    try:
-        # -n 1 で1メッセージのみ、短時間でタイムアウト
-        out = subprocess.check_output(["ros2", "topic", "echo", "-n", "1", topic], text=True, stderr=subprocess.STDOUT, timeout=timeout_sec)
-        return out.strip()
-    except Exception as e:
-        return "(no sample or timeout)"
+def get_topic_sample(topic: str, timeout_sec: float = 5.0) -> str:
+    """
+    Try to fetch one sample from a ROS 2 topic with several QoS variants.
+    Returns a short textual sample or message on failure.
+    """
+    variants = [
+        ["ros2", "topic", "echo", "-n", "1", topic],
+        ["ros2", "topic", "echo", "-n", "1", "--qos-durability", "transient_local", topic],
+        ["ros2", "topic", "echo", "-n", "1", "--qos-reliability", "best_effort", topic],
+        ["ros2", "topic", "echo", "-n", "1", "--qos-durability", "transient_local", "--qos-reliability", "best_effort", topic],
+    ]
+    for cmd in variants:
+        try:
+            out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT, timeout=timeout_sec)
+            s = out.strip()
+            if s:
+                return s
+        except Exception:
+            continue
+    return "(no sample or timeout)"
 
 

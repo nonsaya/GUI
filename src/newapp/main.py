@@ -241,6 +241,10 @@ class NewMainWindow(QtWidgets.QMainWindow):
             self.ros_info.setPlainText("")
             return
         topic = items[0].text()
+        self.ros_info.setPlainText("Fetching...")
+        QtCore.QTimer.singleShot(50, lambda: self._load_topic_info(topic))
+
+    def _load_topic_info(self, topic: str):
         t = get_topic_type(topic)
         s = get_topic_sample(topic)
         self.ros_info.setPlainText(f"Type: {t}\n\nSample:\n{s}")
