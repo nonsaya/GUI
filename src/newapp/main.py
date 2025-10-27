@@ -10,7 +10,7 @@ class NewMainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("New GUI App with Capture")
         central = QtWidgets.QWidget()
-        central.setStyleSheet("background-color: #2b2b2b;")
+        central.setStyleSheet("background-color: #2b2b2b; color: #e0e0e0;")
         self.setCentralWidget(central)
 
         self.video = VideoWidget()
@@ -21,11 +21,16 @@ class NewMainWindow(QtWidgets.QMainWindow):
         self.open_btn = QtWidgets.QPushButton("Open File")
         self.rec_btn = QtWidgets.QPushButton("Rec")
         self.swap_btn = QtWidgets.QPushButton("Swap R/B")
+        for b in [self.refresh_btn, self.start_btn, self.stop_btn, self.open_btn, self.rec_btn, self.swap_btn]:
+            b.setStyleSheet("QPushButton{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:6px;} QPushButton:pressed{background-color:#505354;}")
         self.play_btn = QtWidgets.QPushButton("Play")
         self.pause_btn = QtWidgets.QPushButton("Pause")
         self.stop_play_btn = QtWidgets.QPushButton("Stop")
+        for b in [self.play_btn, self.pause_btn, self.stop_play_btn]:
+            b.setStyleSheet("QPushButton{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:6px;} QPushButton:pressed{background-color:#505354;}")
         self.speed_combo = QtWidgets.QComboBox()
         self.speed_combo.addItems(["0.5x","1x","2x"]) 
+        self.speed_combo.setStyleSheet("QComboBox{background-color:#3c3f41;color:#ffffff;border:1px solid #555;padding:4px;}")
         self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider.setRange(0, 0)
 
