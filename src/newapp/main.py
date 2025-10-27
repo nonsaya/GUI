@@ -366,9 +366,8 @@ class NewMainWindow(QtWidgets.QMainWindow):
         if not s:
             return
         text = s.rstrip("\n")
-        self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
-        self.ssh_output.insertPlainText(text + "\n")
-        self.ssh_output.moveCursor(QtWidgets.QTextCursor.MoveOperation.End)
+        # append はGUIスレッドで安全に末尾改行付きで追記する
+        self.ssh_output.append(text)
 
     def _on_ssh_browse(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Identity File", os.path.expanduser("~/.ssh"), "All Files (*)")
